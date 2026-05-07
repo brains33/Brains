@@ -1,0 +1,16 @@
+ 
+        :root { --primary: #00ff88; --dark-green: #0f5132; --light-green: #198754; }
+        body { background: var(--dark-green); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; padding: 10px; margin: 0; height: 100vh; box-sizing: border-box; }
+        .chat-container { width: 100%; max-width: 800px; background: var(--light-green); display: flex; flex-direction: column; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .header { padding: 15px; background: rgba(0,0,0,0.2); text-align: center; border-bottom: 1px solid var(--primary); }
+        #chatBox { flex: 1; overflow-y: auto; background: var(--dark-green); padding: 15px; display: flex; flex-direction: column; gap: 12px; }
+        .message { padding: 12px 16px; border-radius: 12px; max-width: 85%; line-height: 1.5; word-wrap: break-word; }
+        .user { background: var(--light-green); align-self: flex-end; color: white; border-bottom-right-radius: 2px; border: 1px solid var(--primary); }
+        .ai { background: #212529; align-self: flex-start; border-bottom-left-radius: 2px; color: #f8f9fa; }
+        .input-group { display: flex; padding: 15px; background: var(--light-green); gap: 10px; }
+        input { flex: 1; padding: 12px; border-radius: 25px; border: none; outline: none; font-size: 16px; }
+        button { padding: 0 20px; background: var(--primary); color: var(--dark-green); border: none; border-radius: 25px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { transform: scale(1.05); background: white; }
+        .download-btn { background: #fff; color: #0f5132; padding: 8px 15px; border-radius: 5px; text-decoration: none; display: inline-block; margin-top: 10px; font-size: 13px; font-weight: bold; }
+        .ai b { color: var(--primary); }
+        .ai code { background: #444; padding: 2px 4px; border-radius: 4px; }
