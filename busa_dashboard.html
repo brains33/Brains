@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bursary Dashboard | BRAINS AI</title>
+    <link rel="stylesheet" href="busa_login.css">
+<link rel="stylesheet" href="busa_dashboard.css">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+                   style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+                   img-src 'self' data: https:;
+                   connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
+                   font-src 'self' https://cdnjs.cloudflare.com;
+                   frame-src https://meet.jit.si; frame-ancestors 'none';">
+</head>
+<body>
+
+<div class="dashboard-wrapper">
+    <div class="dashboard-card">
+        <div class="header">
+            <h1>💰 Bursary Clearance</h1>
+            <p id="bursarName">Welcome, Bursar</p>
+            <button id="logoutBtn" class="logout-btn">Logout</button>
+        </div>
+
+        <!-- Search & Filter -->
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <input type="text" id="bussearch" placeholder="🔍 Search name or matrix no..." 
+                   style="flex:1; padding:10px; border-radius:6px; border:1px solid #444; background:#222; color:white;">
+            <label style="display:flex; align-items:center; gap:6px; color:white; font-size:0.85rem;">
+                <input type="checkbox" id="filterPaidOnly"> Show only PAID & no token
+            </label>
+        </div>
+
+        <!-- Overall paid stats (always visible) -->
+        <div id="overallPaidStats" style="margin:10px 0; padding:10px; background:#f0fdf4; border:1px solid #00ff88; border-radius:8px; font-size:0.9rem;">
+            <span>💰 <strong>Total Paid Students:</strong> <span id="totalPaidCount">0</span></span>
+            <span style="margin-left:20px;">💵 <strong>Total Amount Paid:</strong> <span id="totalPaidSum">₦0</span></span>
+        </div>
+
+
+        <div id="filteredStats" style="display:none; margin:10px 0; padding:10px; background:#f0fdf4; border:1px solid #00ff88; border-radius:8px; font-size:0.9rem;">
+            <span>📋 <strong>Eligible for tokens:</strong> <span id="eligibleCount">0</span> students</span>
+            <span style="margin-left:20px;">💵 <strong>Total Paid (these students):</strong> <span id="eligibleSum">₦0</span></span>
+        </div>
+
+        <!-- Bulk action buttons -->
+        <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+            <button id="bulkGenerateBtn" style="background:#00ff88; color:#000; border:none; padding:10px 18px; border-radius:8px; font-weight:bold; cursor:pointer;">
+                🎟️ Generate ALL Tokens (Paid)
+            </button>
+            <button id="bulkEmailBtn" style="background:#007bff; color:white; border:none; padding:10px 18px; border-radius:8px; font-weight:bold; cursor:pointer;">
+                📧 Send ALL Emails (Paid)
+            </button>
+            <span id="bulkStatusMsg" style="color:#ccc; font-size:0.9rem; align-self:center;"></span>
+        </div>
+
+        <!-- Student list -->
+        <div id="busStudentList" style="max-height:500px; overflow-y:auto;">
+            Loading...
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="busa_dashboard.js"></script>
+</body>
+</html>

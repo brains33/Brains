@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QUESTIONS MASTER LAB</title>
+    <link rel="stylesheet" href="adminmath.css">
+
+    <!-- CSP (Content Security Policy) -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+               style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+               img-src 'self' data: https: blob:;
+               media-src 'self' blob:;
+               connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
+               font-src 'self' https://cdnjs.cloudflare.com;
+               frame-src https://meet.jit.si;">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] },
+            loader: { load: ['[tex]/mhchem'] }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- ═══════════ QUESTION ENTRY (with media upload) ═══════════ -->
+<div class="box">
+    <h2>🧪 Master Question Entry</h2>
+    
+    <div class="grid-2">
+        <div>
+            <span class="label-tag">FACULTY</span>
+            <select id="faculty">
+                <option value="">-- Loading Faculties... --</option>
+            </select>
+        </div>
+        <div>
+            <span class="label-tag">DEPARTMENT</span>
+            <select id="dept">
+                <option value="">-- Select Faculty First --</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="form-group">
+            <label>Level</label>
+            <select id="level">
+                <option value="">-- Choose Level --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Semester</label>
+            <select id="semester">
+                <option value="">-- Choose Semester --</option>
+            </select>
+        </div>
+    </div>
+
+    <span class="label-tag">COURSE TITLE / SUBJECT</span>
+    <input id="course" placeholder="e.g. GST 101 or Intro to Programming">
+
+    <hr style="border: 0.5px solid #333; margin: 20px 0;">
+
+    <!-- Media Upload Section -->
+    <div class="form-group" style="margin-bottom: 20px;">
+        <label style="display: block; color: white; margin-bottom: 8px; font-weight: bold;">
+            🎥 QUESTION MEDIA (IMAGE OR VIDEO)
+        </label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="file" id="imageFile" accept="image/*,video/*" style="display: none;">
+            <button type="button" id="chooseFileBtn" 
+                    style="background: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer;">
+                CHOOSE FILE
+            </button>
+            <span id="fileName" style="color: #ccc; font-size: 0.9rem;">No file chosen</span>
+        </div>
+        <div id="mediaPreviewBox" style="margin-top: 15px; width: 100%; min-height: 150px; background: rgba(0,0,0,0.3); border: 2px dashed #444; border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <p id="previewPlaceholder" style="color: #666;">Preview will appear here</p>
+        </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 20px;">
+        <label style="display: block; color: white; margin-bottom: 8px; font-weight: bold;">
+            📝 CLINICAL SCENARIO / QUESTION
+        </label>
+        <textarea id="qText" rows="4" placeholder="Example: Observe the patient in the video. Describe the abnormal finding..." 
+                  style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white;"></textarea>
+    </div>
+    
+    <div class="grid-2">
+        <input id="op1" placeholder="Option 1">
+        <input id="op2" placeholder="Option 2">
+        <input id="op3" placeholder="Option 3">
+        <input id="op4" placeholder="Option 4">
+    </div>
+
+    <select id="correctAns">
+        <option value="">Select Correct Answer</option>
+        <option value="1">Option 1</option>
+        <option value="2">Option 2</option>
+        <option value="3">Option 3</option>
+        <option value="4">Option 4</option>
+    </select>
+    
+    <button id="uploadBtn">UPLOAD TO DATABASE</button>
+
+    <h3>Live Preview:</h3>
+    <div id="preview" style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">Ready for your input...</div>
+</div>
+
+<!-- ═══════════ ASSIGNMENT MANAGEMENT ═══════════ -->
+<div class="card" style="background: #1e1e1e; padding: 25px; border-radius: 12px; max-width: 650px; margin: 30px auto; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <h2 style="color: #00ff88; text-align: center; margin-top: 0;">📝 Assignment Submissions</h2>
+
+    <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+        <input type="text" id="assignSearch" placeholder="🔍 Search by Matrix No, Name or Course..."
+               style="flex:1; padding:10px; border-radius:6px; border:1px solid #444; background:#2d2d2d; color:white; box-sizing:border-box;">
+        <select id="assignFilter" style="padding:10px; border-radius:6px; border:1px solid #444; background:#2d2d2d; color:white;">
+            <option value="all">All Submissions</option>
+            <option value="pending">Pending Only</option>
+            <option value="graded">Graded Only</option>
+        </select>
+        <button id="assignSearchBtn" style="padding:10px 20px; background:#00ff88; color:#121212; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">SEARCH</button>
+    </div>
+
+    <div id="assignmentList" style="color:white;">Loading submissions...</div>
+</div>
+
+<!-- ═══════════ GRADING MODAL ═══════════ -->
+<div id="gradingModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:9999; padding:20px; overflow-y:auto;">
+    <div style="background:white; max-width:600px; margin:40px auto; padding:30px; border-radius:15px; color:#333;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2 style="margin:0; color:#0f5132;">📋 Grade Assignment</h2>
+            <button id="closeGradingModal" style="background:none; border:none; font-size:1.5rem; cursor:pointer;">✕</button>
+        </div>
+
+        <div style="background:#f8fdf9; padding:14px; border-radius:8px; margin-bottom:15px; border-left:4px solid #00ff88;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.9rem;">
+                <div><strong>Name:</strong> <span id="grdName">—</span></div>
+                <div><strong>Matrix:</strong> <span id="grdMatrix">—</span></div>
+                <div><strong>Dept:</strong> <span id="grdDept">—</span></div>
+                <div><strong>Level:</strong> <span id="grdLevel">—</span></div>
+                <div><strong>Faculty:</strong> <span id="grdFaculty">—</span></div>
+                <div><strong>Course:</strong> <span id="grdCourse">—</span></div>
+            </div>
+        </div>
+
+        <div style="background:#fafafa; border:1px solid #e2e8f0; border-radius:8px; padding:15px; margin-bottom:15px; max-height:250px; overflow-y:auto;">
+            <strong style="color:#0f5132;">Assignment:</strong>
+            <p id="grdContent" style="white-space:pre-wrap; color:#444; margin-top:8px; line-height:1.6;"></p>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-bottom:12px; align-items:center;">
+            <div style="flex:1;">
+                <label style="font-size:0.8rem; color:#666;">SCORE AWARDED</label>
+                <input type="number" id="grdScore" min="0" placeholder="e.g. 75"
+                       style="width:100%; padding:12px; border-radius:8px; border:2px solid #0f5132; font-size:1.2rem; font-weight:bold; box-sizing:border-box;">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:0.8rem; color:#666;">OUT OF</label>
+                <input type="number" id="grdMaxScore" value="100" min="1"
+                       style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; font-size:1rem; box-sizing:border-box;">
+            </div>
+        </div>
+        <textarea id="grdFeedback" rows="3" placeholder="Optional feedback to student..."
+                  style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; resize:vertical; box-sizing:border-box; font-family:inherit; margin-bottom:12px;"></textarea>
+        <input type="hidden" id="grdAssignmentId">
+
+        <button id="sendScoreBtn" style="width:100%; padding:15px; background:#0f5132; color:#00ff88; border:none; border-radius:8px; font-weight:bold; font-size:1rem; cursor:pointer;">📤 SEND SCORE TO STUDENT</button>
+        <p id="gradingMsg" style="text-align:center; margin-top:10px; font-weight:bold;"></p>
+    </div>
+</div>
+
+<script src="adminmath.js"></script>
+</body>
+</html>

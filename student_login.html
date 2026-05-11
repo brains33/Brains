@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Login | BRAINS AI</title>
+    <link rel="stylesheet" href="student_login.css">
+
+    <!-- CSP (Content Security Policy) -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+                   style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+                   img-src 'self' data: https:;
+                   connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
+                   font-src 'self' https://cdnjs.cloudflare.com;
+                   frame-src https://meet.jit.si; frame-ancestors 'none';">
+</head>
+<body>
+
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="login-header">
+            <h2>🧠 BRAINS AI</h2>
+            <p>Academic Intelligence Portal</p>
+            <div style="text-align: center; margin: 15px 0;">
+    <a href="clear.html" style="display: inline-block; background: #f0c060; color: #000; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+        🔑 Activate BRAINS AI
+    </a>
+
+</div>
+        </div>
+
+        <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="uName" placeholder="Enter your full name as registered" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="uPass" placeholder="••••••••">
+        </div>
+        <div id="loginErrorMsg" style="color:#ff6b6b; margin-top:8px; font-weight:bold; display:none;"></div>
+
+        <button id="loginBtn" class="btn-login">LOGIN</button>
+        <p id="lockoutMsg" style="display:none; color:#ff6b6b; font-weight:bold; margin-top:10px;"></p>
+
+        <div class="login-footer">
+            <small>Account pending? Contact the IT Department.</small>
+        </div>
+
+        <button class="forgot-link" id="forgotPasswordBtn">🔑 Forgot Password?</button>
+    </div>
+</div>
+
+<!-- ── FORGOT PASSWORD MODAL (unchanged) ── -->
+<div class="modal-overlay" id="forgotModal">
+    <div class="modal-box">
+
+        <!-- STEP 1: Verify identity -->
+        <div class="modal-step active" id="fpStep1">
+            <h3>🔑 Reset Password</h3>
+            <p>Enter your Matrix Number and Full Name. We'll send a verification code to your registered email.</p>
+
+            <div class="m-field">
+                <label>Matrix / Student ID</label>
+                <input type="text" id="fpMatric" placeholder="e.g. MLT/23/001" autocomplete="off">
+            </div>
+            <div class="m-field">
+                <label>Full Name (as registered)</label>
+                <input type="text" id="fpName" placeholder="Your full name">
+            </div>
+
+            <div class="m-msg" id="fpMsg1"></div>
+
+            <button class="m-btn m-btn-primary" id="fpSendBtn">
+                📧 SEND VERIFICATION CODE
+            </button>
+            <button class="m-btn m-btn-ghost" id="cancelForgotBtn">CANCEL</button>
+        </div>
+
+        <!-- STEP 2: Enter OTP -->
+        <div class="modal-step" id="fpStep2">
+            <h3>📬 Check Your Email</h3>
+            <p>A 6-digit code was sent to:</p>
+            <div class="email-mask" id="fpEmailMask">—</div>
+            <p style="margin-top:-10px;">Enter the code below. It expires in <strong>10 minutes</strong>.</p>
+
+            <div class="m-field">
+                <label>Verification Code</label>
+                <input type="text" id="fpOtpInput" placeholder="000000"
+                       maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+            </div>
+
+            <div class="otp-timer">Code expires in: <span id="otpCountdown">10:00</span></div>
+            <div class="m-msg" id="fpMsg2"></div>
+
+            <button class="m-btn m-btn-primary" id="fpVerifyBtn">
+                VERIFY CODE
+            </button>
+            <button class="m-btn m-btn-ghost" id="goBackBtn">← USE DIFFERENT DETAILS</button>
+        </div>
+
+        <!-- STEP 3: Set new password -->
+        <div class="modal-step" id="fpStep3">
+            <h3>🔐 Set New Password</h3>
+            <p>Identity confirmed. Enter your new password below.</p>
+
+            <div class="m-field">
+                <label>New Password</label>
+                <input type="password" id="fpNewPass" placeholder="Min 6 characters">
+            </div>
+            <div class="m-field">
+                <label>Confirm Password</label>
+                <input type="password" id="fpConfirm" placeholder="Repeat new password">
+            </div>
+
+            <div class="m-msg" id="fpMsg3"></div>
+
+            <button class="m-btn m-btn-primary" id="fpSaveBtn">
+                SAVE NEW PASSWORD
+            </button>
+        </div>
+
+        <!-- STEP 4: Success -->
+        <div class="modal-step" id="fpStep4">
+            <div style="text-align:center; padding:10px 0;">
+                <div style="font-size:3rem; margin-bottom:14px;">✅</div>
+                <h3>Password Updated!</h3>
+                <p>Your password has been changed successfully.<br>You can now login with your new password.</p>
+                <button class="m-btn m-btn-primary" id="closeForgotStep4Btn" style="margin-top:8px;">
+                    GO TO LOGIN
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script src="student_login.js"></script>
+</body>
+</html>

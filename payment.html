@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Make Payment | BRAINS AI</title>
+
+    <!-- CSP – allows Paystack, Supabase, external scripts -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://js.paystack.co;
+                   style-src 'self' 'unsafe-inline';
+                   connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co https://api.paystack.co;
+                   frame-src https://checkout.paystack.com;
+                   img-src 'self' data: https:;">
+
+    <style>
+        body { font-family: sans-serif; background: #0a0a0a; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: #1a1a1a; padding: 40px; border-radius: 20px; text-align: center; max-width: 400px; border: 2px solid #00ff88; }
+        h2 { color: #00ff88; }
+        .field { margin-bottom: 15px; text-align: left; }
+        .field label { display: block; font-size: 0.9rem; margin-bottom: 5px; }
+        .field input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 1rem; }
+        button { background: #00ff88; color: black; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; font-size: 1.1rem; cursor: pointer; width: 100%; }
+        button:disabled { opacity: 0.5; }
+        .msg { margin-top: 15px; }
+        .msg.success { color: #00ff88; }
+        .msg.error { color: #ff4444; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>🧾 School Fee Payment</h2>
+    <p>Enter your Matrix Number to continue</p>
+
+    <div class="field">
+        <label>Matrix Number</label>
+        <input type="text" id="matrixInput" placeholder="e.g. MLT/23/001">
+    </div>
+
+    <button id="lookupBtn">🔍 Look Up Fee</button>
+    <div id="feeDisplay" style="margin: 15px 0; font-weight: bold;"></div>
+    <button id="payBtn" style="display: none;">💳 Pay Now</button>
+    <p id="msg" class="msg"></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script src="payment.js"></script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+
+        :root {
+            --primary-green: #00ff88;
+            --dark-green-bg: #062e1c;
+            --card-green:    #0a3d25;
+            --text-white:    #f0fff4;
+            --input-bg:      #041f13;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: radial-gradient(circle at center, var(--card-green), var(--dark-green-bg));
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-white);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .login-wrapper { width: 100%; max-width: 400px; }
+
+        .login-card {
+            background: var(--card-green);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            border: 1px solid rgba(0,255,136,0.1);
+            text-align: center;
+        }
+
+        .login-header h2 { margin: 0; font-size: 1.8rem; letter-spacing: 1px; color: var(--primary-green); }
+        .login-header p  { color: #a7f3d0; font-size: 0.9rem; margin-top: 5px; margin-bottom: 30px; }
+
+        .form-group { text-align: left; margin-bottom: 20px; }
+        .form-group label {
+            display: block; margin-bottom: 8px;
+            font-size: 0.8rem; text-transform: uppercase;
+            letter-spacing: 1px; color: #6ee7b7;
+        }
+        .form-group input {
+            width: 100%; padding: 14px;
+            background: var(--input-bg);
+            border: 1px solid rgba(0,255,136,0.2);
+            border-radius: 10px; color: white;
+            box-sizing: border-box; transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        .form-group input:focus {
+            outline: none; border-color: var(--primary-green);
+            box-shadow: 0 0 15px rgba(0,255,136,0.15);
+        }
+
+        #loginBtn {
+            width: 100%; padding: 15px;
+            background: var(--primary-green);
+            border: none; border-radius: 10px;
+            color: #062e1c; font-weight: 800;
+            font-size: 1rem; cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase; margin-top: 10px;
+        }
+        #loginBtn:hover { background: #ffffff; color: #059669; transform: translateY(-3px); }
+        #loginBtn:disabled { background: #065f46; color: #064e3b; cursor: not-allowed; transform: none; }
+
+        .login-footer { margin-top: 20px; color: #6ee7b7; font-size: 0.75rem; }
+
+        .forgot-link {
+            display: inline-block; margin-top: 14px;
+            color: rgba(0,255,136,0.7); font-size: 0.78rem;
+            cursor: pointer; transition: color 0.2s; background: none;
+            border: none; text-decoration: underline; text-underline-offset: 3px;
+        }
+        .forgot-link:hover { color: var(--primary-green); }
+
+        /* ── MODAL ── */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.8); z-index: 999;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal-overlay.open { display: flex; }
+
+        .modal-box {
+            background: #0a3d25;
+            border: 1px solid rgba(0,255,136,0.2);
+            border-radius: 18px; padding: 30px;
+            width: 100%; max-width: 380px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+
+        .modal-step { display: none; }
+        .modal-step.active { display: block; animation: slideUp 0.25s ease; }
+
+        .modal-box h3 { color: var(--primary-green); margin: 0 0 6px; font-size: 1.1rem; }
+        .modal-box p  { color: rgba(167,243,208,0.75); font-size: 0.82rem; line-height: 1.6; margin-bottom: 18px; }
+
+        .m-field { margin-bottom: 14px; text-align: left; }
+        .m-field label {
+            display: block; font-size: 0.72rem; color: #6ee7b7;
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
+        }
+        .m-field input {
+            width: 100%; padding: 12px 14px;
+            background: #041f13;
+            border: 1px solid rgba(0,255,136,0.2);
+            border-radius: 9px; color: white;
+            font-size: 0.92rem; box-sizing: border-box;
+            outline: none; transition: border-color 0.2s;
+        }
+        .m-field input:focus { border-color: var(--primary-green); }
+
+        /* OTP input — large digits */
+        #fpOtpInput {
+            font-size: 1.8rem; font-weight: 800;
+            letter-spacing: 12px; text-align: center;
+            font-family: monospace; padding: 14px;
+        }
+
+        .m-btn {
+            width: 100%; padding: 13px; border: none;
+            border-radius: 9px; font-weight: 800;
+            font-size: 0.9rem; cursor: pointer;
+            margin-top: 6px; transition: all 0.2s;
+        }
+        .m-btn-primary { background: var(--primary-green); color: #062e1c; }
+        .m-btn-primary:hover { background: white; }
+        .m-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .m-btn-ghost {
+            background: transparent;
+            border: 1px solid rgba(0,255,136,0.2);
+            color: rgba(167,243,208,0.6); font-size: 0.8rem; margin-top: 8px;
+        }
+        .m-btn-ghost:hover { border-color: var(--primary-green); color: var(--primary-green); }
+
+        .m-msg { font-size: 0.78rem; margin-top: 8px; min-height: 18px; text-align: center; }
+        .m-msg.err { color: #ff6b6b; }
+        .m-msg.ok  { color: var(--primary-green); }
+
+        /* OTP timer */
+        .otp-timer { font-size: 0.75rem; color: rgba(167,243,208,0.5); margin-top: 6px; }
+        .otp-timer span { color: #ffc043; font-weight: bold; }
+
+        /* Email mask display */
+        .email-mask {
+            background: rgba(0,255,136,0.07);
+            border: 1px solid rgba(0,255,136,0.15);
+            border-radius: 8px; padding: 10px 14px;
+            font-size: 0.85rem; color: var(--primary-green);
+            margin-bottom: 14px; font-weight: 600;
+        }
