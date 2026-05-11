@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://gjznwgzoqpfdnxywixgv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZKjAmE-iA-C7KklIH1G-MA_nBAdobbI';
 const PAYSTACK_PUBLIC_KEY = 'pk_test_8564df5226f404c1952b77183cc611d283be1a0c';
 
-let student = null;   // will store student row from the edge function
+let student = null;
 let requiredFee = 0;
 
 const lookupBtn  = document.getElementById('lookupBtn');
@@ -10,7 +10,6 @@ const payBtn     = document.getElementById('payBtn');
 const feeDisplay = document.getElementById('feeDisplay');
 const msgEl      = document.getElementById('msg');
 
-// ── LOOK UP FEE ──────────────────────────────────────────────────────
 lookupBtn.addEventListener('click', loadFee);
 
 async function loadFee() {
@@ -45,7 +44,6 @@ async function loadFee() {
             throw new Error(result.error || 'Failed to fetch fee.');
         }
 
-        // If the student already paid
         if (result.already_paid) {
             msgEl.className = 'msg success';
             msgEl.innerText = result.message;
@@ -53,7 +51,6 @@ async function loadFee() {
             return;
         }
 
-        // Store student info for the Paystack payload
         student = result.student;
         requiredFee = result.requiredFee;
 
@@ -69,10 +66,7 @@ async function loadFee() {
     }
 }
 
-// ── PAY NOW ─────────────────────────────────────────────────────────
 payBtn.addEventListener('click', () => {
-    console.log('Pay button clicked');   // debug: should appear in console
-
     if (typeof PaystackPop === 'undefined') {
         alert('Payment system not loaded. Please refresh the page.');
         return;
@@ -83,12 +77,10 @@ payBtn.addEventListener('click', () => {
         return;
     }
 
-    console.log('Opening Paystack with fee:', requiredFee, 'Student:', student);
-
     const handler = PaystackPop.setup({
         key: PAYSTACK_PUBLIC_KEY,
         email: student.email || 'student@example.com',
-        amount: requiredFee * 100,      // kobo
+        amount: requiredFee * 100,
         currency: 'NGN',
         ref: 'BRAINS_' + Date.now(),
         metadata: {
@@ -96,12 +88,13 @@ payBtn.addEventListener('click', () => {
             name: student.name
         },
         callback: function(response) {
-    window.location.href = 'student_login.html';
-}
+            // All post‑payment actions go here
+            msgEl.className = 'msg success';
             msgEl.innerText = '✅ Payment successful! Your bursary will process your clearance shortly.';
             payBtn.style.display = 'none';
             lookupBtn.style.display = 'none';
             document.getElementById('matrixInput').disabled = true;
+            window.location.href = 'student_login.html';
         },
         onClose: function() {
             msgEl.className = 'msg error';
