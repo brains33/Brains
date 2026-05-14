@@ -1,0 +1,60 @@
+
+    /* Override stats box styling for dark theme */
+    #overallPaidStats, #filteredStats {
+        background: #0f5132 !important;   /* dark green background */
+        color: #00ff88 !important;        /* bright green text */
+        border: 1px solid #00ff88 !important;
+        font-weight: bold;
+    }
+    #overallPaidStats span, #filteredStats span {
+        color: #00ff88;                   /* ensure spans are also green */
+    }
+    #overallPaidStats strong, #filteredStats strong {
+        color: #ffffff;                   /* make the labels white for contrast */
+    }
+
+    /* Dark background for the whole page */
+    body {
+        background: #0a0a0a !important;
+        color: #e2f5eb;
+    }
+
+    .dashboard-wrapper {
+        background: transparent;
+    }
+
+    .dashboard-card {
+        background: #1a1a1a;
+        color: #e2f5eb;
+        border: 1px solid rgba(0,255,136,0.15);
+        padding: 20px;
+        border-radius: 16px;
+    }
+
+    .dashboard-card .header h1,
+    .dashboard-card .header p {
+        color: #e2f5eb;
+    }
+
+    .dashboard-card label {
+        color: #ccc !important;
+    }
+
+    /* Ensure input fields are readable */
+    #bussearch {
+        background: #222 !important;
+        color: white !important;
+        border-color: #444 !important;
+    }
+
+    /* Make the student list scrollable part match */
+    #busStudentList {
+        background: transparent;
+    }
+
+    /* The stats boxes already have a light green background – keep them */
+    #overallPaidStats, #filteredStats {
+        background: #0f5132 !important;
+        color: #00ff88 !important;
+        border-color: #00ff88 !important;
+    }

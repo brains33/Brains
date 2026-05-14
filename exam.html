@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="stylesheet" href="exam.css" type="text/css" media="all" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRAINS AI CBT - Secure Exam</title>
+
+    <!-- CSP (Content Security Policy) -->
+    <!-- CSP (Content Security Policy) -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+               style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+               img-src 'self' data: https: blob:;
+               media-src 'self' blob: https:;
+               connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
+               font-src 'self' https://cdnjs.cloudflare.com;
+               frame-src https://meet.jit.si;">
+
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] },
+            loader: { load: ['[tex]/mhchem'] }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div id="cameraArea" style="position: fixed; top: 10px; right: 10px; width: 120px; z-index: 9999; background: #000; border: 2px solid #00ff88; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: center;">
+    <p style="color: #00ff88; font-size: 8px; margin: 2px 0; font-weight: bold; font-family: sans-serif;">📡 LIVE</p>
+    <video id="proctorVideo" autoplay muted playsinline style="width: 100%; height: 90px; object-fit: cover; display: block; background: #222;"></video>
+    <canvas id="proctorCanvas" width="320" height="240" style="display:none;"></canvas>
+    <button id="camRetry" style="display:none; font-size: 8px; background: #ff4444; color: white; border: none; width: 100%; padding: 5px; cursor: pointer;">RESTART CAM</button>
+</div>
+
+<div id="progressBar" style="width: 0%;"></div>
+
+<div id="topHeader">
+    <div><small>Subject:</small> <br><span id="subjectTitle">---</span></div>
+    <div id="timerDisplay">00:00</div>
+    <div><small>Progress:</small> <br><span id="qCount">0/0</span></div>
+</div>
+
+<div id="startOverlay">
+    <h1>BRAINS AI PORTAL</h1>
+    <p>Security Monitoring is Active</p>
+    <button id="startExamBtn" style="padding: 20px 40px; background: var(--primary); font-size: 1.2em;">START EXAMINATION</button>
+</div>
+
+<div class="exam-container" id="examBox" style="display:none;">
+    <div id="questionArea"></div>
+
+    <div class="nav-buttons">
+        <button class="btn-nav" id="prevBtn">PREVIOUS</button>
+        <button class="btn-nav" id="nextBtn">NEXT</button>
+    </div>
+
+    <button class="btn-submit" id="finalSubmit" style="width:100%; margin-top:30px; display:none;">SUBMIT FINISH</button>
+</div>
+
+<script src="exam.js"></script>
+</body>
+</html>

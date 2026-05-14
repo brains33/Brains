@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline';
+               connect-src https://gjznwgzoqpfdnxywixgv.supabase.co;
+               frame-ancestors 'none';">
+    <title>Verify Clearance | BRAINS AI</title>
+    <style>
+        :root {
+            --green: #00ff88;
+            --dark:  #040d07;
+            --card:  #081a0f;
+            --field: #0d2618;
+            --border: rgba(0,255,136,0.15);
+            --text:  #e2f5eb;
+            --muted: rgba(226,245,235,0.45);
+            --error: #ff6b6b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--dark);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 35px 30px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 { font-size: 1.8rem; color: var(--green); margin-bottom: 10px; }
+        p  { color: var(--muted); margin-bottom: 25px; font-size: 0.95rem; }
+        .field { margin-bottom: 15px; text-align: left; }
+        .field label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+            color: var(--muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .field input {
+            width: 100%;
+            padding: 14px;
+            background: var(--field);
+            border: 1px solid rgba(0,255,136,0.15);
+            border-radius: 10px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .field input:focus { border-color: var(--green); }
+        #activateBtn {
+            width: 100%;
+            padding: 15px;
+            background: var(--green);
+            color: var(--dark);
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: 0.2s;
+        }
+        #activateBtn:active   { transform: scale(0.97); }
+        #activateBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .msg { margin-top: 15px; font-size: 0.9rem; min-height: 22px; }
+        .msg.success { color: var(--green); }
+        .msg.error   { color: var(--error); }
+        a { color: var(--green); text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>🧠 BRAINS AI</h1>
+    <p>Activate your student account with the clearance token provided by the bursary.</p>
+
+    <div class="field">
+        <label for="matrixNo">Matrix / Student ID</label>
+        <input type="text" id="matrixNo" placeholder="e.g. MLT/23/001"
+               autocomplete="off" maxlength="30">
+    </div>
+
+    <div class="field">
+        <label for="token">Clearance Token</label>
+        <input type="text" id="token" placeholder="e.g. A3F9K2"
+               autocomplete="off" maxlength="10">
+    </div>
+
+    <button id="activateBtn" type="button">ACTIVATE ACCOUNT</button>
+    <div id="msgBox" class="msg" role="alert" aria-live="polite"></div>
+
+    <p style="margin-top: 20px; font-size: 0.8rem; color: var(--muted);">
+        Already approved? <a href="student_login.html">Login here</a>
+    </p>
+</div>
+
+<script src="clear.js"></script>
+
+</body>
+</html>
