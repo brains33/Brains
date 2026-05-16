@@ -404,38 +404,33 @@ async function createExamSession() {
     const course   = document.getElementById('gateCourse').value.trim().toUpperCase();
     if (!faculty || !dept || !level || !semester) return alert("⚠️ Please select Faculty, Department, Level and Semester first.");
     if (!course) return alert("⚠️ Please enter a Course Code before generating a token.");
+
     const newToken = Math.floor(1000 + Math.random() * 9000).toString();
     const endTime  = new Date(); endTime.setMinutes(endTime.getMinutes() + 60);
 
     try {
-        // Get the latest normal session for this group + course (if any exists)
-        const { data: existing } = await sb.from('exam_sessions')
-            .select('id')
-            .eq('department', dept)
-            .eq('level', level)
-            .eq('semester', semester)
-            .eq('course', course)
-            .eq('is_carryover', false)
-            .order('id', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        let error;
-        if (existing) {
-            // Update the existing session
-            ({ error } = await sb.from('exam_sessions')
-                .update({ token_code: newToken, is_active: "false", faculty, end_time: endTime.toISOString() })
-                .eq('id', existing.id));
-        } else {
-            // Insert a new normal session
-            ({ error } = await sb.from('exam_sessions')
-                .insert({ faculty, department: dept, level, semester, course, token_code: newToken, is_active: "false", end_time: endTime.toISOString(), is_carryover: false }));
-        }
+        // Single upsert — works whether the row exists or not.
+        // onConflict matches the unique_exam_session_normal constraint columns.
+        const { error } = await sb.from('exam_sessions')
+            .upsert(
+                {
+                    faculty,
+                    department:   dept,
+                    level,
+                    semester,
+                    course,
+                    is_carryover: false,          // boolean — matches DB column type
+                    token_code:   newToken,
+                    is_active:    "false",         // text — matches DB column type
+                    end_time:     endTime.toISOString()
+                },
+                { onConflict: 'department,level,semester,course,is_carryover' }
+            );
 
         if (error) throw error;
 
-        document.getElementById('activeTokenTop').textContent = newToken;
-        document.getElementById('activeTokenBottom').textContent = newToken;
+        document.getElementById('activeTokenTop').textContent     = newToken;
+        document.getElementById('activeTokenBottom').textContent  = newToken;
         document.getElementById('activeCourseDisplay').textContent = course;
         alert(`✅ Token ${newToken} → ${sanitise(course)} | ${sanitise(dept)} | ${sanitise(level)}L | ${sanitise(semester)} Semester`);
     } catch (err) {
@@ -1739,48 +1734,31 @@ async function createCarryoverSession() {
     if (!faculty || !dept || !course || !origLvl || !origSem) {
         return alert("⚠️ Please fill all carryover fields.");
     }
+
     const token = Math.floor(1000 + Math.random() * 9000).toString();
     const endTime = new Date();
     endTime.setMinutes(endTime.getMinutes() + 60);
 
-    // Check if a carryover session for this department and course already exists
-    const { data: existing } = await sb.from('exam_sessions')
-        .select('id')
-        .eq('is_carryover', true)
-        .eq('carryover_course', course)
-        .eq('department', dept)
-        .maybeSingle();
-
-    let error;
-    if (existing) {
-        ({ error } = await sb.from('exam_sessions').update({
-            token_code: token,
-            is_active: "false",
-            faculty,
-            department: dept,
-            level: origLvl,
-            semester: origSem,
-            end_time: endTime.toISOString(),
-            is_carryover: true,
-            carryover_course: course,
-            original_level: origLvl,
-            original_semester: origSem
-        }).eq('id', existing.id));
-    } else {
-        ({ error } = await sb.from('exam_sessions').insert({
-            faculty,
-            department: dept,
-            level: origLvl,
-            semester: origSem,
-            token_code: token,
-            is_active: "false",
-            end_time: endTime.toISOString(),
-            is_carryover: true,
-            carryover_course: course,
-            original_level: origLvl,
-            original_semester: origSem
-        }));
-    }
+    // Single upsert — works whether the carryover session exists or not.
+    // onConflict matches the unique constraint for carryover sessions:
+    // department + carryover_course + is_carryover uniquely identifies a carryover row.
+    const { error } = await sb.from('exam_sessions')
+        .upsert(
+            {
+                faculty,
+                department:        dept,
+                level:             origLvl,
+                semester:          origSem,
+                token_code:        token,
+                is_active:         "false",        // text — matches DB column type
+                end_time:          endTime.toISOString(),
+                is_carryover:      true,            // boolean — matches DB column type
+                carryover_course:  course,
+                original_level:    origLvl,
+                original_semester: origSem
+            },
+            { onConflict: 'department,carryover_course,is_carryover' }
+        );
 
     if (error) {
         alert("Carryover session creation failed: " + error.message);
