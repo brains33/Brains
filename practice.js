@@ -9,8 +9,8 @@ async function securityCheck() {
         const result = await response.json();
         if (response.status === 503 || result.error === "MAINTENANCE_MODE") {
             document.body.innerHTML = `
-                <div style="background:#0f172a; color:white; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:sans-serif; text-align:center;">
-                    <h1 style="color:#ef4444; font-size: 2.5rem;">⚠️ SYSTEM LOCKED</h1>
+                <div style="background:#0f172a;color:white;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;text-align:center;">
+                    <h1 style="color:#ef4444;font-size:2.5rem;">⚠️ SYSTEM LOCKED</h1>
                     <p style="color:#94a3b8;">Administrative lockdown active. Contact BRAINS ICT.</p>
                 </div>`;
             window.stop();
@@ -33,34 +33,30 @@ function sanitise(str) {
 const S_URL = 'https://gjznwgzoqpfdnxywixgv.supabase.co';
 const S_KEY = 'sb_publishable_ZKjAmE-iA-C7KklIH1G-MA_nBAdobbI';
 const sb = supabase.createClient(S_URL, S_KEY, {
-    global: {
-        headers: {
-            'x-student-token': sessionStorage.getItem('studentToken') || ''
-        }
-    }
+    global: { headers: { 'x-student-token': sessionStorage.getItem('studentToken') || '' } }
 });
 
-let currentQuiz = [];
+let currentQuiz  = [];
+let lastScore    = 0;
+let lastPercent  = 0;
 
-// ── AUTH GUARD — verifies token against Supabase, not just sessionStorage ──
+// ── AUTH GUARD ──────────────────────────────────────────────────────
 window.onload = async function() {
     const token = sessionStorage.getItem("studentToken");
     if (sessionStorage.getItem("loginUser") !== "true" || !token) {
         window.location.replace("student_login.html");
         return;
     }
-
     try {
-        const { data, error } = await sb.rpc('verify_student_token', {
-            submitted_token: token
-        });
-
+        const { data, error } = await sb.rpc('verify_student_token', { submitted_token: token });
         if (error || !data || data.length === 0) {
             sessionStorage.clear();
             window.location.replace("student_login.html");
             return;
         }
-        // Token is valid — page stays open
+        populateCourseDropdown();
+        prefillCourse();
+        initVoiceInput();
     } catch (e) {
         console.error("Token Verification Error:", e);
         sessionStorage.clear();
@@ -68,39 +64,84 @@ window.onload = async function() {
     }
 };
 
-// ── GENERATE PRACTICE QUESTIONS ────────────────────────────────────
+// ── COURSE DROPDOWN ─────────────────────────────────────────────────
+async function populateCourseDropdown() {
+    try {
+        const student = JSON.parse(sessionStorage.getItem('student_data')) || {};
+        const query = sb.from('questions').select('course');
+        if (student.dept)     query.eq('department', student.dept.toUpperCase().trim());
+        if (student.level)    query.eq('level', student.level);
+        if (student.semester) query.eq('semester', student.semester);
+
+        const { data } = await query;
+        if (!data) return;
+        const unique = [...new Set(data.map(c => (c.course || '').toUpperCase().trim()))].filter(Boolean).sort();
+        const dl = document.getElementById('practiceCourselist');
+        if (dl) dl.innerHTML = unique.map(c => `<option value="${c}">`).join('');
+    } catch(e) { console.warn("Course dropdown:", e); }
+}
+
+function prefillCourse() {
+    const student = JSON.parse(sessionStorage.getItem('student_data')) || {};
+    const input   = document.getElementById('courseCode');
+    if (!input) return;
+    const lastCourse = sessionStorage.getItem('practice_last_course');
+    if (lastCourse) input.value = lastCourse;
+    else if (student.course) input.value = student.course.toUpperCase();
+}
+
+// ── VOICE INPUT FOR COURSE ──────────────────────────────────────────
+function initVoiceInput() {
+    const micBtn = document.getElementById('micCourseBtn');
+    if (!micBtn) return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { micBtn.style.display = 'none'; return; }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.onstart  = () => micBtn.classList.add('listening');
+    recognition.onend    = () => micBtn.classList.remove('listening');
+    recognition.onerror  = () => micBtn.classList.remove('listening');
+    recognition.onresult = (event) => {
+        const t = event.results[0][0].transcript.replace(/\s/g, '').toUpperCase();
+        document.getElementById('courseCode').value = t;
+    };
+    micBtn.addEventListener('click', () => { try { recognition.start(); } catch(e){} });
+}
+
+// ── GENERATE PRACTICE QUESTIONS ─────────────────────────────────────
 async function generatePractice() {
     const code = document.getElementById('courseCode').value.toUpperCase().trim();
-    const difficultyEl = document.getElementById('difficultyLevel');
-    const difficulty = difficultyEl ? difficultyEl.value : 'random';
+    const difficulty = document.getElementById('difficultyLevel')?.value || 'random';
     const btn = document.getElementById('startBtn');
 
-    if (!code) return alert("Please enter a Course Code!");
+    if (!code) { alert("Please enter a Course Code!"); return; }
+    sessionStorage.setItem('practice_last_course', code);
 
     btn.disabled = true;
-    btn.innerText = "Mu'ujiza AI reading handout...";
+    btn.innerText = "Generating…";
+    document.getElementById('setupArea').style.display = 'none';
+    document.getElementById('loadingArea').style.display = 'block';
 
-    // ── Build a dynamic prompt based on difficulty ────────
     let difficultyPrompt = "";
     if (difficulty === 'easy') {
-        difficultyPrompt = "Generate 5 EASY multiple‑choice questions that test basic recall and simple understanding. Keep the questions straightforward and the answers obvious to anyone who has read the handout.";
+        difficultyPrompt = "Generate 5 EASY multiple-choice questions testing basic recall. Keep questions straightforward.";
     } else if (difficulty === 'hard') {
-        difficultyPrompt = "Generate 5 HARD multiple‑choice questions that require deep analysis, application, or critical thinking. Include tricky distractors and scenario‑based questions. The answers should not be immediately obvious from glancing at the handout.";
+        difficultyPrompt = "Generate 5 HARD multiple-choice questions requiring deep analysis and critical thinking. Include tricky distractors.";
     } else if (difficulty === 'mixed') {
-        difficultyPrompt = "Generate 5 multiple‑choice questions with MIXED difficulty. Some should be easy (basic recall), some medium (application), and some hard (analysis). Make sure the set covers a range of cognitive levels.";
-    } else { // 'random'
+        difficultyPrompt = "Generate 5 MIXED difficulty MCQs. Some easy recall, some analytical, some application-based.";
+    } else {
         const modes = ['easy', 'hard', 'mixed'];
-        const randomMode = modes[Math.floor(Math.random() * modes.length)];
-        if (randomMode === 'easy') {
-            difficultyPrompt = "Generate 5 EASY multiple‑choice questions that test basic recall and simple understanding. Keep the questions straightforward.";
-        } else if (randomMode === 'hard') {
-            difficultyPrompt = "Generate 5 HARD multiple‑choice questions that require deep analysis, application, or critical thinking. Include tricky distractors.";
-        } else {
-            difficultyPrompt = "Generate 5 MIXED‑difficulty multiple‑choice questions. Some easy, some medium, some hard.";
-        }
+        const m = modes[Math.floor(Math.random() * modes.length)];
+        difficultyPrompt = m === 'easy'
+            ? "Generate 5 EASY MCQs testing basic recall."
+            : m === 'hard'
+            ? "Generate 5 HARD MCQs requiring critical thinking and tricky distractors."
+            : "Generate 5 MIXED difficulty MCQs covering recall, application, and analysis.";
     }
 
-    // Add a random seed so each generation is unique
     const randomSeed = Math.floor(Math.random() * 1000000);
     const fullPrompt = `${difficultyPrompt}\n\nCourse: ${code}\nFormat: Return ONLY a valid JSON array, no extra text.\nRandom seed: ${randomSeed}`;
 
@@ -117,66 +158,125 @@ async function generatePractice() {
         if (error) throw error;
 
         currentQuiz = typeof data === 'string' ? JSON.parse(data) : data;
+        if (!Array.isArray(currentQuiz)) throw new Error("AI failed to format questions. Please try again.");
 
-        if (!Array.isArray(currentQuiz)) {
-            throw new Error("AI failed to format questions. Please try again.");
-        }
-
+        document.getElementById('loadingArea').style.display = 'none';
         renderQuiz();
 
     } catch (err) {
+        document.getElementById('loadingArea').style.display = 'none';
+        document.getElementById('setupArea').style.display = 'block';
         alert("Error: " + err.message);
         console.error(err);
     } finally {
         btn.disabled = false;
-        btn.innerText = "Generate Questions";
+        btn.innerText = "⚡ Generate Questions";
     }
 }
-// ── RENDER QUIZ ────────────────────────────────────────────────────
-function renderQuiz() {
-    document.getElementById('setupArea').style.display = 'none';
-    document.getElementById('quizArea').style.display = 'block';
 
+// ── RENDER QUIZ ─────────────────────────────────────────────────────
+function renderQuiz() {
+    document.getElementById('quizArea').style.display = 'block';
     const container = document.getElementById('questionsContainer');
     container.innerHTML = currentQuiz.map((item, idx) => `
-    <div class="q-card">
-        <p><strong>${idx+1}. ${sanitise(item.q)}</strong></p>
-        ${item.opts.map((opt, i) => `
-            <label class="option-label">
-                <input type="radio" name="q${idx}" value="${i}"> ${sanitise(opt)}
-            </label>
-        `).join('')}
-    </div>
-`).join('');
+        <div class="q-card" id="qcard-${idx}">
+            <p><strong>${idx + 1}. ${sanitise(item.q)}</strong></p>
+            ${item.opts.map((opt, i) => `
+                <label class="option-label" id="opt-${idx}-${i}">
+                    <input type="radio" name="q${idx}" value="${i}" style="margin-right:8px;"> ${sanitise(opt)}
+                </label>
+            `).join('')}
+        </div>
+    `).join('');
 }
 
-// ── GRADE PRACTICE ─────────────────────────────────────────────────
+// ── GRADE PRACTICE ──────────────────────────────────────────────────
 function gradePractice() {
     let score = 0;
     currentQuiz.forEach((item, idx) => {
         const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-        if (selected && parseInt(selected.value) === item.ans) {
-            score++;
-        }
+        if (selected && parseInt(selected.value) === item.ans) score++;
     });
 
-    const percent = Math.round((score / currentQuiz.length) * 100);
+    lastScore   = score;
+    lastPercent = Math.round((score / currentQuiz.length) * 100);
+
     document.getElementById('quizArea').style.display = 'none';
     document.getElementById('resultArea').style.display = 'block';
-    document.getElementById('scoreDisplay').innerText = percent + "%";
-    document.getElementById('remarkDisplay').innerText = percent >= 50
-        ? "Great job! Keep learning."
-        : "Review the material and try again.";
+    document.getElementById('scoreDisplay').innerText = lastPercent + "%";
+
+    // Animate score bar
+    setTimeout(() => {
+        const fill = document.getElementById('scoreFill');
+        if (fill) {
+            fill.style.width = lastPercent + '%';
+            fill.style.background = lastPercent >= 50 ? '#00ff88' : '#ff4444';
+        }
+    }, 100);
+
+    const remarks = [
+        { min: 80, text: "🏆 Excellent! You've mastered this topic." },
+        { min: 60, text: "👍 Good job! Review a few weak areas." },
+        { min: 50, text: "✅ You passed! Keep practising to improve." },
+        { min:  0, text: "📖 Review the material carefully and try again." }
+    ];
+    const remark = remarks.find(r => lastPercent >= r.min);
+    document.getElementById('remarkDisplay').innerText =
+        `${score}/${currentQuiz.length} correct — ${remark.text}`;
 }
 
-// ── EVENT LISTENERS (CSP‑compliant) ────────────────────────────────
+// ── REVIEW ANSWERS ──────────────────────────────────────────────────
+function reviewAnswers() {
+    document.getElementById('resultArea').style.display = 'none';
+    document.getElementById('quizArea').style.display = 'block';
+
+    // Reveal correct/wrong answers visually
+    currentQuiz.forEach((item, idx) => {
+        const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+        const selectedVal = selected ? parseInt(selected.value) : -1;
+
+        item.opts.forEach((_, i) => {
+            const label = document.getElementById(`opt-${idx}-${i}`);
+            if (!label) return;
+            // Disable all radios
+            const radio = label.querySelector('input');
+            if (radio) radio.disabled = true;
+
+            if (i === item.ans) {
+                label.classList.add('correct'); // always highlight correct
+            } else if (i === selectedVal && selectedVal !== item.ans) {
+                label.classList.add('wrong');   // what they chose if wrong
+            }
+        });
+    });
+
+    // Change submit button to "Back to Score"
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) {
+        submitBtn.textContent = '📊 Back to Score';
+        submitBtn.removeEventListener('click', gradePractice);
+        submitBtn.addEventListener('click', () => {
+            document.getElementById('quizArea').style.display = 'none';
+            document.getElementById('resultArea').style.display = 'block';
+        });
+    }
+}
+
+// ── EVENT LISTENERS ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('startBtn')?.addEventListener('click', generatePractice);
     document.getElementById('submitBtn')?.addEventListener('click', gradePractice);
-    document.getElementById('tryAgainBtn')?.addEventListener('click', function() {
-        location.reload();
-    });
-    document.getElementById('doneBtn')?.addEventListener('click', function() {
-        location.reload();
-    });
+    document.getElementById('reviewBtn')?.addEventListener('click', reviewAnswers);
+    document.getElementById('tryAgainBtn')?.addEventListener('click', () => location.reload());
+    document.getElementById('doneBtn')?.addEventListener('click', () => location.reload());
+
+    // Auto-uppercase course input
+    const ci = document.getElementById('courseCode');
+    if (ci) {
+        ci.addEventListener('input', () => {
+            const pos = ci.selectionStart;
+            ci.value = ci.value.toUpperCase();
+            ci.setSelectionRange(pos, pos);
+        });
+    }
 });
