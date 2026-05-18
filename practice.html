@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practice Mode | BRAINS AI</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+                   style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+                   img-src 'self' data: https:;
+                   connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
+                   font-src 'self' https://cdnjs.cloudflare.com;
+                   frame-src https://meet.jit.si; frame-ancestors 'none';">
+
+    <style>
+        :root { --green:#00ff88; --dark:#0a0a0a; --card:#1a1a1a; --white:#ffffff; }
+        * { box-sizing:border-box; }
+        body { background:var(--dark); color:var(--white); font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; justify-content:center; padding:20px; }
+        .practice-container { width:100%; max-width:640px; }
+        header { text-align:center; margin-bottom:30px; }
+        header h1 { color:var(--green); font-size:2.5rem; margin-bottom:5px; }
+
+        .card { background:var(--card); padding:25px; border-radius:15px; border-left:5px solid var(--green); box-shadow:0 10px 30px rgba(0,0,0,.5); margin-bottom:20px; }
+
+        .course-row { display:flex; gap:8px; align-items:center; margin:15px 0; }
+        .course-row input { flex:1; padding:12px; background:#222; border:1px solid #444; color:white; border-radius:8px; font-size:1rem; text-transform:uppercase; }
+        .course-row input:focus { border-color:var(--green); outline:none; }
+        #micCourseBtn { background:transparent; border:1px solid #444; color:#aaa; border-radius:8px; padding:0 14px; font-size:1.1rem; cursor:pointer; height:44px; transition:all .2s; }
+        #micCourseBtn.listening { border-color:#ff4444; color:#ff4444; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+        select { width:100%; padding:12px; background:#222; border:1px solid #444; color:white; border-radius:8px; margin-bottom:15px; font-size:0.95rem; }
+        button { width:100%; padding:15px; background:var(--green); color:black; border:none; border-radius:8px; font-weight:bold; cursor:pointer; transition:.3s; font-size:1rem; }
+        button:hover { opacity:.8; transform:translateY(-2px); }
+
+        /* Quiz card */
+        .q-card { margin-bottom:25px; padding-bottom:15px; border-bottom:1px solid #333; }
+        .q-card p { font-size:1rem; margin-bottom:10px; }
+        .option-label { display:block; background:#252525; padding:12px; margin:8px 0; border-radius:8px; cursor:pointer; border:2px solid transparent; transition:border-color .2s; }
+        .option-label:hover { border-color:var(--green); }
+        /* Answer reveal states */
+        .option-label.correct   { border-color:#00ff88; background:rgba(0,255,136,.12); }
+        .option-label.wrong     { border-color:#ff4444; background:rgba(255,68,68,.1); }
+        .option-label.missed    { border-color:#ffc107; background:rgba(255,193,7,.08); }
+
+        .btn-outline { background:transparent; color:#aaa; border:1px solid #444; margin-top:10px; }
+        .btn-outline:hover { border-color:var(--green); color:var(--green); }
+
+        /* Result */
+        #resultArea h2 { font-size:3rem; color:var(--green); }
+        .score-bar { height:12px; background:#333; border-radius:6px; margin:16px 0 8px; overflow:hidden; }
+        .score-fill { height:100%; background:var(--green); border-radius:6px; transition:width 1s ease; }
+
+        /* Skeleton loader */
+        .skeleton { background:linear-gradient(90deg,#1a1a1a 25%,#252525 50%,#1a1a1a 75%); background-size:200% 100%; animation:shimmer 1.2s infinite; height:18px; border-radius:4px; margin:10px 0; }
+        @keyframes shimmer { 0%{background-position:200% 0;} 100%{background-position:-200% 0;} }
+    </style>
+</head>
+<body>
+    <div class="practice-container">
+        <header>
+            <h1><i class="fas fa-brain"></i> BRAINS AI</h1>
+            <p>Practice Mode: Powered by Mu'ujiza Data</p>
+        </header>
+
+        <div id="setupArea" class="card">
+            <h3>Select Course</h3>
+            <div class="course-row">
+                <input type="text" id="courseCode" list="practiceCourselist" placeholder="e.g. ANA201" autocomplete="off">
+                <datalist id="practiceCourselist"></datalist>
+                <button id="micCourseBtn" title="Say course code">🎤</button>
+            </div>
+
+            <h3 style="margin-top:5px;">Difficulty Level</h3>
+            <select id="difficultyLevel">
+                <option value="random">🎲 Random Mix</option>
+                <option value="easy">🟢 Easy (Basic Recall)</option>
+                <option value="hard">🔴 Hard (Analytical / Critical Thinking)</option>
+                <option value="mixed">🔵 Mixed (Easy + Hard Combined)</option>
+            </select>
+
+            <button id="startBtn">⚡ Generate Questions</button>
+        </div>
+
+        <!-- Loading skeleton (shown while generating) -->
+        <div id="loadingArea" style="display:none;" class="card">
+            <p style="color:#aaa; margin-bottom:14px;">🧠 Mu'ujiza is reading the handout…</p>
+            <div class="skeleton" style="width:85%;"></div>
+            <div class="skeleton" style="width:70%;"></div>
+            <div class="skeleton" style="width:90%;"></div>
+            <div class="skeleton" style="width:60%;"></div>
+        </div>
+
+        <div id="quizArea" style="display:none;">
+            <div id="questionsContainer"></div>
+            <button id="submitBtn">✅ Submit & Grade</button>
+            <button id="tryAgainBtn" class="btn-outline" style="margin-top:10px;">🔄 Try Another Subject</button>
+        </div>
+
+        <div id="resultArea" class="card" style="display:none; text-align:center;">
+            <h2 id="scoreDisplay">0%</h2>
+            <div class="score-bar"><div class="score-fill" id="scoreFill" style="width:0%;"></div></div>
+            <p id="remarkDisplay" style="color:#aaa; margin-bottom:16px;"></p>
+            <button id="reviewBtn" style="margin-bottom:10px; background:#1a1a1a; color:var(--green); border:1px solid var(--green);">📖 Review Answers</button>
+            <button id="doneBtn">✨ Try Again</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="practice.js"></script>
+</body>
+</html>
