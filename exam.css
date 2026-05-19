@@ -1,0 +1,220 @@
+:root {
+    --primary: #00ff88;
+    --dark-green: #062e1c;
+    --light-green: #198754;
+    --danger: #dc3545;
+}
+
+body {
+    background: var(--dark-green);
+    color: white;
+    font-family: 'Segoe UI', sans-serif;
+    margin: 0;
+    padding-top: 80px; /* Space for static timer */
+    text-align: center;
+}
+
+/* Static Top Bar */
+#topHeader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #041f13;
+    padding: 10px 0;
+    z-index: 1000;
+    border-bottom: 2px solid var(--primary);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+#timerDisplay {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: var(--primary);
+    font-family: monospace;
+}
+
+/* Palette and exam container layout */
+.exam-wrapper {
+    display: flex;
+    max-width: 1200px;
+    margin: 20px auto;
+    gap: 20px;
+    padding: 0 20px;
+}
+
+.palette {
+    width: 160px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    padding: 10px;
+    text-align: center;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    position: sticky;
+    top: 90px;
+}
+
+.palette h4 {
+    margin: 0 0 10px 0;
+    font-size: 0.9rem;
+    color: var(--primary);
+}
+
+.palette-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+}
+
+.palette-btn {
+    background: #333;
+    border: 2px solid transparent;
+    color: white;
+    padding: 7px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.2s;
+    font-size: 0.78rem;
+}
+.palette-btn.answered {
+    background: var(--primary);
+    color: #0f5132;
+}
+.palette-btn.current {
+    border-color: #fff;
+    transform: scale(1.08);
+}
+.palette-btn.answered.current {
+    background: var(--primary);
+    color: #0f5132;
+    border-color: #fff;
+    box-shadow: 0 0 6px rgba(255,255,255,0.6);
+}
+/* Hover only affects unanswered buttons */
+.palette-btn:not(.answered):hover {
+    background: #555;
+}
+/* Legend */
+.palette-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 10px;
+    font-size: 0.65rem;
+    color: #aaa;
+    text-align: left;
+}
+.palette-legend span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+/* Question container */
+.exam-container {
+    flex: 1;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.q-card {
+    background: var(--light-green);
+    padding: 30px;
+    border-radius: 15px;
+    text-align: left;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.opt-label {
+    display: block;
+    padding: 15px;
+    background: var(--dark-green);
+    margin: 10px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: 0.2s;
+}
+.opt-label:hover { border-color: var(--primary); }
+input[type="radio"]:checked + span { color: var(--primary); font-weight: bold; }
+
+.nav-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+button {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.btn-nav { background: white; color: var(--dark-green); }
+.btn-submit { background: var(--primary); color: var(--dark-green); }
+
+#startOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--dark-green); z-index: 2000;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+}
+#progressBar {
+    position: fixed; top: 0; left: 0; height: 5px; 
+    background: var(--primary); transition: 0.3s; z-index: 1100;
+}
+
+/* Mobile: palette on top, stacked */
+@media (max-width: 700px) {
+    .exam-wrapper {
+        flex-direction: column;
+    }
+    .palette {
+        width: 100%;
+        max-width: 100%;
+        position: static;
+        margin-bottom: 15px;
+        max-height: 160px;
+        overflow-y: auto;
+    }
+    .palette-grid {
+        grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+    }
+}
+
+/* Calculator buttons */
+.calc-btn {
+    background: #333;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: 0.1s;
+}
+.calc-btn:active { transform: scale(0.96); background: #555; }
+
+
+/* Ensure top bar content does not hide under camera on very small screens */
+@media (max-width: 480px) {
+    #topHeader {
+        padding-right: 80px; /* room for camera area (120px width) */
+    }
+    #topHeader button {
+        font-size: 0.75rem;
+        padding: 5px 8px;
+    }
+}
