@@ -1,0 +1,349 @@
+
+      /* ── SYSTEM DESIGN TOKENS ───────────────────────────────────────────── */
+:root {
+    --primary-green:  #00ff88;
+    --primary-hover:  #ffffff;
+    --dark-green-bg:  #062e1c;
+    --card-green:     #0a3d25;
+    --text-white:     #f0fff4;
+    --input-bg:       #041f13;
+    --muted-green:    #6ee7b7;
+    --subtle-text:    #a7f3d0;
+    --error:          #ff6b6b;
+    --warn:           #ffc043;
+}
+
+/* ── BASE LAYOUT STRUCTURAL STYLES ──────────────────────────────────── */
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(circle at center, var(--card-green), var(--dark-green-bg));
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-white);
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.login-wrapper {
+    width: 100%;
+    max-width: 400px;
+}
+
+.login-card {
+    background: var(--card-green);
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(0, 255, 136, 0.1);
+    text-align: center;
+}
+
+.login-header h2 {
+    margin: 0;
+    font-size: 1.8rem;
+    letter-spacing: 1px;
+    color: var(--primary-green);
+}
+
+.login-header p {
+    color: var(--subtle-text);
+    font-size: 0.9rem;
+    margin-top: 5px;
+    margin-bottom: 30px;
+}
+
+/* ── FORM ELEMENTS & CONTROL INPUTS ─────────────────────────────────── */
+.form-group {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted-green);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 14px;
+    background: var(--input-bg);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    border-radius: 10px;
+    color: #ffffff;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--primary-green);
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+}
+
+/* ── CORE ENGINE SUBMISSION BUTTONS ─────────────────────────────────── */
+.btn-login {
+    width: 100%;
+    padding: 15px;
+    background: var(--primary-green);
+    border: none;
+    border-radius: 10px;
+    color: var(--dark-green-bg);
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    margin-top: 10px;
+}
+
+.btn-login:hover {
+    background: var(--primary-hover);
+    color: #059669;
+    transform: translateY(-3px);
+}
+
+.btn-login:disabled {
+    background: #065f46;
+    color: #064e3b;
+    cursor: not-allowed;
+    transform: none;
+    opacity: 0.6;
+}
+
+.login-footer {
+    margin-top: 20px;
+    color: var(--muted-green);
+    font-size: 0.75rem;
+}
+
+.forgot-link {
+    display: inline-block;
+    margin-top: 14px;
+    color: rgba(0, 255, 136, 0.7);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: color 0.2s;
+    background: none;
+    border: none;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.forgot-link:hover {
+    color: var(--primary-green);
+}
+
+/* ── LIVE SECURITY EXAM STATUS BANNERS ─────────────────────────────── */
+.err-banner, .lockout-banner {
+    background: rgba(255, 107, 107, 0.12);
+    border: 1px solid var(--error);
+    color: var(--error);
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    text-align: center;
+    font-weight: bold;
+    line-height: 1.4;
+    box-sizing: border-box;
+}
+
+.lockout-banner {
+    background: rgba(255, 192, 67, 0.1);
+    border: 1px solid var(--warn);
+    color: var(--warn);
+}
+
+/* ── MULTI-STEP ACCOUNT RECOVERY OVERLAY MODAL ──────────────────────── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.open {
+    display: flex;
+}
+
+.modal-box {
+    background: var(--card-green);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    border-radius: 18px;
+    padding: 30px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+    box-sizing: border-box;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+.modal-step {
+    display: none;
+}
+
+.modal-step.active {
+    display: block;
+    animation: slideUp 0.25s ease-out;
+}
+
+.modal-box h3 {
+    color: var(--primary-green);
+    margin: 0 0 6px;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.modal-box .subtitle {
+    color: var(--subtle-text);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin-bottom: 18px;
+}
+
+.m-field {
+    margin-bottom: 14px;
+    text-align: left;
+}
+
+.m-field label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--muted-green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.m-field input {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--input-bg);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    border-radius: 9px;
+    color: #ffffff;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.m-field input:focus {
+    border-color: var(--primary-green);
+}
+
+/* Verification Code Input View Field */
+#fpOtpInput {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: 6px;
+    text-align: center;
+    font-family: monospace;
+    padding: 12px;
+}
+
+/* Modal Internal Flow Navigation Controllers */
+.m-btn {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 9px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    box-sizing: border-box;
+}
+
+.m-btn-primary {
+    background: var(--primary-green);
+    color: var(--dark-green-bg);
+}
+
+.m-btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+.m-btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.m-btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    color: rgba(167, 243, 208, 0.6);
+    font-size: 0.8rem;
+    margin-top: 10px;
+}
+
+.m-btn-ghost:hover {
+    border-color: var(--primary-green);
+    color: var(--primary-green);
+}
+
+.m-msg {
+    font-size: 0.8rem;
+    margin-top: 10px;
+    min-height: 18px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.m-msg.err {
+    color: var(--error);
+}
+
+.m-msg.ok {
+    color: var(--primary-green);
+}
+
+/* OTP Countdown Timer Span elements */
+.otp-timer {
+    font-size: 0.8rem;
+    color: rgba(167, 243, 208, 0.6);
+    margin-top: 10px;
+    text-align: center;
+}
+
+.otp-timer span {
+    color: var(--warn);
+    font-weight: bold;
+}
+
+/* Dynamic Hidden Contact Email Display Mask */
+.email-mask {
+    background: rgba(0, 255, 136, 0.07);
+    border: 1px solid rgba(0, 255, 136, 0.15);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: var(--primary-green);
+    margin-top: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    text-align: center;
+    font-family: monospace;
+}
