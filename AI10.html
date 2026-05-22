@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Tutor - Mu'ujiza</title>
+    <link rel="stylesheet" href="AI10.css">
+
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+                   style-src 'self' 'unsafe-inline';
+                   connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
+                   font-src 'self' https://cdnjs.cloudflare.com;
+                   frame-src https://meet.jit.si; frame-ancestors 'none';">
+
+    <script>
+        const token = sessionStorage.getItem("studentToken");
+        if (!token) { window.location.href = "student_login.html"; }
+    </script>
+
+
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="header">
+        <h3 style="margin:0;">📖 Mu'ujiza AI Tutor</h3>
+        <small style="opacity:0.8">AI ASSISTANT FOR ALLIED HEALTH SCIENCE</small>
+    </div>
+
+    <div class="course-bar">
+        <label>📚 Course:</label>
+        <input id="courseInput" list="courseList" placeholder="e.g. MLT201" maxlength="20" autocomplete="off">
+        <datalist id="courseList"></datalist>
+    </div>
+
+    <div id="chatBox">
+        <div class="message ai">Welcome! 🥰 I am Mu'ujiza, your AI study companion.<br>Select your course above, then ask me anything about your handout!</div>
+    </div>
+
+    <button id="clearBtn" title="Clear chat history">🗑 Clear chat</button>
+    <div class="suggestions" id="suggestionChips" style="display:none;"></div>
+
+    <div class="input-group">
+        <input id="userInput" placeholder="Type your study question..." autocomplete="off">
+        <button id="micBtn" title="Voice input">🎤</button>
+        <button id="sendBtn">Send</button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="AI10.js"></script>
+</body>
+</html>
