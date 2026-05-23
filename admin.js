@@ -1509,74 +1509,229 @@ function printMasterPDF() {
             `REMARK: ${isPassing ? 'PASS' : 'FAIL'}`,
             `VERIFIED BY: BRAINS ACADEMIC INTELLIGENCE`
         ].join(' | '));
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${qrData}`;
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${qrData}`;
 
         const courseRows = student.exams.map((ex, i) => `
-            <tr>
-                <td>${i+1}</td>
-                <td>${safeValue(ex.subject)}</td>
-                <td>${safeValue(ex.semester || '1st')}</td>
-                <td style="font-weight:bold; color:#0f5132;">${ex.score}%</td>
-            </tr>`).join('');
+            <tr class="${i % 2 === 0 ? 'even-row' : 'odd-row'}">
+                <td style="width: 40px; text-align: center; padding: 10px;">${i+1}</td>
+                <td style="padding: 10px; font-weight: 600;">${safeValue(ex.subject)}</td>
+                <td style="text-align: center; padding: 10px;">${safeValue(ex.semester || '1st')}</td>
+                <td style="text-align: center; font-weight: bold; color: ${isPassing ? '#0f5132' : '#c0392b'}; padding: 10px;">${ex.score}%</td>
+            </tr>
+        `).join('');
 
         return `
-            <div class="student-block">
+            <div class="student-card">
                 <div class="student-header">
-                    <div class="header-info">
-                        <div class="student-name">👤 ${safeValue(name)}</div>
-                        <div class="student-meta">
-                            <span>MATRIC: ${safeValue(student.info.matrix_no)}</span>
-                            <span>DEPT: ${safeValue(student.info.department || 'N/A')}</span>
-                            <span>LEVEL: ${safeValue(student.info.level || 'N/A')}</span>
-                            <span>SEM: ${safeValue(student.info.semester || 'N/A')}</span>
+                    <div class="student-info">
+                        <h2>${safeValue(name)}</h2>
+                        <div class="student-details">
+                            <span><strong>Matric No:</strong> ${safeValue(student.info.matrix_no)}</span>
+                            <span><strong>Department:</strong> ${safeValue(student.info.department || 'N/A')}</span>
+                            <span><strong>Level:</strong> ${safeValue(student.info.level || 'N/A')}L</span>
+                            <span><strong>Semester:</strong> ${safeValue(student.info.semester || 'N/A')}</span>
                         </div>
                     </div>
-                    <div class="qr-box">
-                        <img src="${qrUrl}" alt="QR Code" width="110" height="110">
-                        <div class="qr-label">SCAN TO VERIFY</div>
+                    <div class="qr-container">
+                        <img src="${qrUrl}" alt="QR Code" width="90" height="90">
+                        <div class="qr-label">VERIFY</div>
                     </div>
                 </div>
-                <table>
-                    <thead><tr><th>S/N</th><th>COURSE</th><th>SEMESTER</th><th>SCORE</th></tr></thead>
-                    <tbody>${courseRows}</tbody>
-                </table>
-                <div class="summary-row">
-                    <div class="summary-stats">📊 Total Points: <strong>${total}pts</strong> &nbsp;|&nbsp; Average: <strong>${avg}%</strong> &nbsp;<span style="color:#888;">(${student.exams.length} course${student.exams.length>1?'s':''})</span></div>
-                    <div class="remark ${isPassing?'pass':'fail'}">${isPassing?'✅ PASS':'❌ FAIL'}</div>
+                <div class="courses-table-wrapper">
+                    <table class="courses-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Course Code</th>
+                                <th style="width: 100px;">Semester</th>
+                                <th style="width: 80px;">Score (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${courseRows}
+                        </tbody>
+                    </table>
                 </div>
-            </div>`;
+                <div class="summary-section">
+                    <div class="summary-stats">
+                        <strong>Total Points:</strong> ${total} pts &nbsp;|&nbsp;
+                        <strong>Average:</strong> ${avg}% &nbsp;
+                        <span style="color:#888;">(${student.exams.length} course${student.exams.length>1?'s':''})</span>
+                    </div>
+                    <div class="result-badge ${isPassing ? 'pass-badge' : 'fail-badge'}">
+                        ${isPassing ? 'PASS' : 'FAIL'}
+                    </div>
+                </div>
+            </div>
+        `;
     }).join('');
 
     const win = window.open('', '_blank');
     win.document.write(`
-        <!DOCTYPE html><html><head><title>STUDENT MASTER RECORDS</title><style>
-        body { font-family: sans-serif; padding: 30px; color: #111; font-size: 12px; }
-        .page-header { text-align: center; border-bottom: 4px solid #0f5132; margin-bottom: 25px; padding-bottom: 12px; }
-        .page-header h1 { color: #0f5132; margin: 0; font-size: 18px; }
-        .page-header p { margin: 5px 0 0; color: #555; font-size: 11px; }
-        .student-block { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; page-break-inside: avoid; }
-        .student-header { background: #0f5132; color: white; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .student-name { font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 6px; }
-        .student-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 10px; opacity: 0.85; }
-        .student-meta span { background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 10px; }
-        .qr-box { text-align: center; background: white; padding: 6px; border-radius: 6px; }
-        .qr-label { color: #0f5132; font-size: 8px; font-weight: bold; margin-top: 3px; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #e8f5e9; color: #0f5132; padding: 8px 10px; text-align: left; font-size: 11px; border-bottom: 2px solid #0f5132; }
-        td { padding: 7px 10px; border-bottom: 1px solid #eee; font-size: 11px; }
-        tr:last-child td { border-bottom: none; }
-        .summary-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: #f9f9f9; border-top: 2px solid #ddd; }
-        .summary-stats { font-size: 11px; color: #333; }
-        .remark { font-weight: bold; font-size: 12px; padding: 5px 18px; border-radius: 20px; letter-spacing: 1px; }
-        .pass { color: #0f5132; background: #d4edda; border: 2px solid #0f5132; }
-        .fail { color: #c0392b; background: #fde8e8; border: 2px solid #c0392b; }
-        .page-footer { margin-top: 30px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
-        @media print { body { padding: 15px; } .student-block { page-break-inside: avoid; } }
-        </style></head><body>
-        <div class="page-header"><h1>🤖 BRAINS AI — STUDENT MASTER RECORDS</h1><p>OFFICIAL ACADEMIC RECORD | Generated: ${new Date().toLocaleDateString()}</p></div>
-        ${studentBlocks}
-        <div class="page-footer">BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} | QR codes are unique per student and verifiable</div>
-        </body></html>`);
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Student Master Records | BRAINS AI</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+                    background: #f4f7fb;
+                    padding: 30px;
+                    color: #1e2a3a;
+                }
+                .report-container {
+                    max-width: 1100px;
+                    margin: 0 auto;
+                }
+                .report-header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    padding-bottom: 15px;
+                    border-bottom: 3px solid #0f5132;
+                }
+                .report-header h1 {
+                    color: #0f5132;
+                    font-size: 24px;
+                    margin-bottom: 5px;
+                }
+                .report-header p {
+                    color: #5a6e7a;
+                    font-size: 12px;
+                }
+                .student-card {
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                    margin-bottom: 30px;
+                    overflow: hidden;
+                    page-break-inside: avoid;
+                    border: 1px solid #e2e8f0;
+                }
+                .student-header {
+                    background: #0f5132;
+                    color: white;
+                    padding: 15px 20px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    gap: 15px;
+                }
+                .student-info h2 {
+                    font-size: 18px;
+                    margin: 0 0 8px 0;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                }
+                .student-details {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 15px;
+                    font-size: 12px;
+                }
+                .student-details span {
+                    background: rgba(255,255,255,0.15);
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                }
+                .qr-container {
+                    text-align: center;
+                    background: white;
+                    padding: 5px;
+                    border-radius: 8px;
+                }
+                .qr-label {
+                    font-size: 8px;
+                    color: #0f5132;
+                    font-weight: bold;
+                    margin-top: 3px;
+                }
+                .courses-table-wrapper {
+                    padding: 0 20px 10px 20px;
+                }
+                .courses-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 13px;
+                }
+                .courses-table th {
+                    background: #eef2f5;
+                    color: #0f5132;
+                    padding: 12px 10px;
+                    text-align: left;
+                    font-weight: 600;
+                    border-bottom: 2px solid #cbd5e1;
+                }
+                .courses-table td {
+                    padding: 10px;
+                    border-bottom: 1px solid #e2e8f0;
+                }
+                .even-row {
+                    background-color: #f9fbfd;
+                }
+                .odd-row {
+                    background-color: white;
+                }
+                .summary-section {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 12px 20px;
+                    background: #f8fafc;
+                    border-top: 2px solid #e2e8f0;
+                    margin-top: 5px;
+                }
+                .summary-stats {
+                    font-size: 13px;
+                    color: #2d3e50;
+                }
+                .result-badge {
+                    font-weight: bold;
+                    font-size: 14px;
+                    padding: 6px 24px;
+                    border-radius: 30px;
+                    letter-spacing: 1px;
+                }
+                .pass-badge {
+                    background: #d4edda;
+                    color: #0f5132;
+                    border: 1px solid #0f5132;
+                }
+                .fail-badge {
+                    background: #fde8e8;
+                    color: #c0392b;
+                    border: 1px solid #c0392b;
+                }
+                .report-footer {
+                    text-align: center;
+                    margin-top: 30px;
+                    padding-top: 15px;
+                    font-size: 10px;
+                    color: #7f8c8d;
+                    border-top: 1px solid #dce5ec;
+                }
+                @media print {
+                    body { background: white; padding: 15px; }
+                    .student-card { box-shadow: none; break-inside: avoid; }
+                    .qr-container img { print-color-adjust: exact; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="report-container">
+                <div class="report-header">
+                    <h1>🤖 BRAINS AI – OFFICIAL ACADEMIC TRANSCRIPT</h1>
+                    <p>STUDENT MASTER RECORDS | Generated: ${new Date().toLocaleDateString()} | POWERED BY MU'UJIZA DATA</p>
+                </div>
+                ${studentBlocks}
+                <div class="report-footer">
+                    BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} – QR codes are verifiable through the official portal.
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
     win.document.close();
     win.onload = () => {
         const images = win.document.querySelectorAll('img');
@@ -1591,7 +1746,6 @@ function printMasterPDF() {
         });
     };
 }
-
 function exportCourseCSV() {
     const term = document.getElementById("courseSearchInput").value.toLowerCase();
     const filtered = allResults.filter(r => r.subject.toLowerCase().includes(term));
