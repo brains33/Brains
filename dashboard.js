@@ -799,15 +799,15 @@ async function downloadExamCardPDF() {
   .info-item label { display:block; font-size:0.68rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; }
   .info-item span  { font-weight:bold; color:#0f5132; font-size:0.92rem; }
   .notice { background:#fffbea; border:1px solid #f0c040; border-radius:6px; padding:10px 14px; font-size:0.78rem; color:#856404; margin-bottom:18px; }
-  table { width:100%; border-collapse:collapse; }
+  table { width:100%; border-collapse:collapse; margin-bottom:30px; }
   thead tr { background:#0f5132; color:white; }
   th { padding:9px 10px; text-align:left; font-size:0.75rem; letter-spacing:0.4px; }
   td { border:1px solid #ddd; padding:9px 10px; }
-  .sign-section { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:30px; }
+  .sign-section { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:30px; margin-bottom:20px; }
   .sign-box { border-top:1px solid #999; padding-top:8px; }
   .sign-box .sign-line { height:50px; border-bottom:1px dashed #ccc; margin-bottom:4px; }
   .sign-box p { font-size:0.72rem; color:#555; text-align:center; margin-top:4px; }
-  .stamp-box { border:2px dashed #ccc; border-radius:8px; height:90px; display:flex; align-items:center; justify-content:center; color:#ccc; font-size:0.75rem; margin-top:20px; }
+  .stamp-box { border:2px dashed #ccc; border-radius:8px; height:90px; display:flex; align-items:center; justify-content:center; color:#ccc; font-size:0.75rem; margin-top:20px; margin-bottom:20px; }
   .footer { margin-top:24px; text-align:center; font-size:0.65rem; color:#aaa; border-top:1px solid #eee; padding-top:10px; }
   @media print { body { padding:15px; } }
 </style>
@@ -839,6 +839,8 @@ async function downloadExamCardPDF() {
     The CBT access token for each course will be shown on your dashboard when the gate is open.
     You may only sit for courses listed below. This card is <strong>non-transferable</strong>.
   </div>
+  
+  <!-- ========== COURSES TABLE (comes FIRST) ========== -->
   <table>
     <thead>
       <tr>
@@ -851,19 +853,26 @@ async function downloadExamCardPDF() {
       </tr>
     </thead>
     <tbody>${rows}</tbody>
-  </tr>
+  </table>
+  
+  <!-- ========== SIGNATURES & STAMP (come AFTER the table) ========== -->
   <div class="sign-section">
     <div class="sign-box"><div class="sign-line"></div><p>Exam Officer Signature &amp; Date</p></div>
     <div class="sign-box"><div class="sign-line"></div><p>HOD / Dean Signature &amp; Date</p></div>
   </div>
   <div class="stamp-box">OFFICIAL STAMP / SEAL</div>
-  <div class="footer">BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This card is non-transferable.</div>
-</body></html>`;
+  
+  <div class="footer">
+    BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This card is non-transferable.
+  </div>
+</body>
+</html>`;
     const win = window.open('', '_blank');
     win.document.write(printHTML);
     win.document.close();
     win.onload = () => win.print();
 }
+
 
 // ── SCHEDULED EXAM CARD (ORIGINAL) ─────────────────────────────────
 async function checkScheduledExamCardReleased() {
