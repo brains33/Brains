@@ -1467,7 +1467,7 @@ function generateBrandedPDF(title, filteredData) {
         td { border: 1px solid #ddd; padding: 8px; font-size: 11px; }
         .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
         </style></head><body>
-        <div class="header"><h1>🤖 BRAINS AI: ${safeValue(title)}</h1><p>OFFICIAL ACADEMIC RECORD | Generated: ${new Date().toLocaleDateString()}</p></div>
+        <div class="header"><h1>Barau Mu’azu Universal College of Health Science and Technology, Kontagora: ${safeValue(title)}</h1><p>OFFICIAL ACADEMIC RECORD | Generated: ${new Date().toLocaleDateString()}</p></div>
         <table><thead><tr><th>S/N</th><th>NAME</th><th>ID</th><th>COURSE</th><th>SEM</th><th>SCORE</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="footer">POWERED BY MU'UJIZA DATA</div>
         </body></html>`);
@@ -1586,7 +1586,7 @@ function printMasterPDF() {
     const printHTML = `<!DOCTYPE html>
 <html>
 <head>
-    <title>Master Record Transcript | BRAINS AI</title>
+    <title>Master Record Transcript | Barau Mu’azu Universal College of Health Science and Technology, Kontagora</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -1633,7 +1633,7 @@ function printMasterPDF() {
 <body>
 <div class="report-container">
     <div class="report-header">
-        <h1>🎓 BRAINS AI – STUDENT MASTER RECORD</h1>
+        <h1>🎓Barau Mu’azu Universal College of Health Science and Technology, Kontagora – STUDENT MASTER RECORD</h1>
         <p>OFFICIAL ACADEMIC TRANSCRIPT | Generated: ${new Date().toLocaleDateString()} | POWERED BY MU'UJIZA DATA</p>
     </div>
     ${studentBlocks}

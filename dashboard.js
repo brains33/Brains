@@ -699,7 +699,7 @@ async function downloadResultsPDF() {
 </head>
 <body>
   <div class="header">
-    <h1>🎓 BRAINS AI — OFFICIAL RESULT SLIP</h1>
+    <h1>🎓 Barau Mu’azu Universal College of Health Science and Technology, Kontagora — OFFICIAL RESULT SLIP</h1>
     <p>Academic Result Record &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
   </div>
   <div class="info-box">
@@ -815,7 +815,7 @@ async function downloadExamCardPDF() {
 <body>
   <div class="header">
     <div class="header-text">
-      <h1>🎓 BRAINS AI — STUDENT EXAM CARD</h1>
+      <h1>🎓 Barau Mu’azu Universal College of Health Science and Technology, Kontagora — STUDENT EXAM CARD</h1>
       <p>Official CBT Examination Hall Ticket &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
       <p style="margin-top:4px; color:#0f5132; font-size:0.7rem; font-weight:bold;">
         Academic Session: ${new Date().getFullYear()}/${new Date().getFullYear() + 1}
@@ -951,7 +951,7 @@ async function downloadScheduledExamCardPDF() {
 <body>
   <div class="header">
     <div class="header-text">
-      <h1>🎓 BRAINS AI — SCHEDULED EXAM CARD</h1>
+      <h1>🎓 Barau Mu’azu Universal College of Health Science and Technology, Kontagora — SCHEDULED EXAM CARD</h1>
       <p>Official Physical Examination Hall Ticket &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
       <p style="margin-top:4px; color:#0f5132; font-size:0.7rem; font-weight:bold;">
         Academic Session: ${new Date().getFullYear()}/${new Date().getFullYear() + 1}
