@@ -99,7 +99,6 @@ function initSidebar() {
             if (page === 'assignments') loadAssignments();
             if (page === 'examcard') initExamCardPage();
             if (page === 'examscheduler') initExamSchedulerPage();
-            if (page === 'examscheduler') initExamSchedulerPage();
 
             // Close sidebar on mobile
             sidebar.classList.remove('open');
@@ -1008,12 +1007,14 @@ async function createCaSession() {
     endTime.setMinutes(endTime.getMinutes() + 60);
 
     try {
-        // Upsert: find existing CA session for this dept+course
+        // Upsert: find existing CA session matching ALL 4 key fields
         const { data: existing } = await sb.from('exam_sessions')
             .select('id')
             .eq('is_ca', true)
             .eq('department', dept)
             .eq('course', course)
+            .eq('level', level)
+            .eq('semester', semester)
             .maybeSingle();
 
         let error;
@@ -1060,9 +1061,11 @@ async function createCaSession() {
 }
 
 async function toggleCaGate() {
-    const dept   = document.getElementById('caDept').value;
-    const course = document.getElementById('caCourse').value.trim().toUpperCase();
-    if (!dept || !course) return alert('⚠️ Please select Department and enter Course code.');
+    const dept     = document.getElementById('caDept').value;
+    const course   = document.getElementById('caCourse').value.trim().toUpperCase();
+    const level    = document.getElementById('caLevel').value;
+    const semester = document.getElementById('caSemester').value;
+    if (!dept || !course || !level || !semester) return alert('⚠️ Please select Department, Level, Semester and enter Course code.');
 
     const statusSpan = document.getElementById('caGateStatus');
     const btn        = document.getElementById('caToggleGateBtn');
@@ -1072,7 +1075,9 @@ async function toggleCaGate() {
         .update({ is_active: isOpening ? 'true' : 'false' })
         .eq('is_ca', true)
         .eq('department', dept)
-        .eq('course', course);
+        .eq('course', course)
+        .eq('level', level)
+        .eq('semester', semester);
 
     if (!error) {
         statusSpan.textContent        = isOpening ? 'CA GATE: OPEN' : 'CA GATE: CLOSED';
@@ -1088,13 +1093,15 @@ async function toggleCaGate() {
 let _caTimerInterval = null;
 
 async function startCaExam() {
-    const dept   = document.getElementById('caDept').value;
-    const course = document.getElementById('caCourse').value.trim().toUpperCase();
-    const mins   = parseInt(document.getElementById('caDuration').value);
-    const token  = document.getElementById('caActiveToken').textContent;
+    const dept     = document.getElementById('caDept').value;
+    const course   = document.getElementById('caCourse').value.trim().toUpperCase();
+    const level    = document.getElementById('caLevel').value;
+    const semester = document.getElementById('caSemester').value;
+    const mins     = parseInt(document.getElementById('caDuration').value);
+    const token    = document.getElementById('caActiveToken').textContent;
 
-    if (!dept || !course || token === '----' || isNaN(mins) || mins <= 0) {
-        return alert('⚠️ Generate a token, select department/course, and enter a valid duration.');
+    if (!dept || !course || !level || !semester || token === '----' || isNaN(mins) || mins <= 0) {
+        return alert('⚠️ Generate a token, select all fields, and enter a valid duration.');
     }
 
     const endTime = new Date(Date.now() + mins * 60000).toISOString();
@@ -1102,7 +1109,9 @@ async function startCaExam() {
         .update({ is_active: 'true', end_time: endTime })
         .eq('is_ca', true)
         .eq('department', dept)
-        .eq('course', course);
+        .eq('course', course)
+        .eq('level', level)
+        .eq('semester', semester);
 
     if (error) { alert('DB error: ' + safeErr(error)); return; }
 
@@ -1112,18 +1121,18 @@ async function startCaExam() {
     document.getElementById('caToggleGateBtn').style.background = '#ff4444';
     document.getElementById('caToggleGateBtn').style.color     = 'white';
 
-    alert(`✅ CA started for ${course} | ${dept}!`);
-    runCaTimer(mins * 60, dept, course);
+    alert(`✅ CA started for ${course} | ${dept} | ${level}L | ${semester} Semester!`);
+    runCaTimer(mins * 60, dept, course, level, semester);
 }
 
-function runCaTimer(totalSeconds, dept, course) {
+function runCaTimer(totalSeconds, dept, course, level, semester) {
     clearInterval(_caTimerInterval);
     const display = document.getElementById('caTimerDisplay');
     _caTimerInterval = setInterval(async () => {
         if (totalSeconds <= 0) {
             clearInterval(_caTimerInterval);
             if (display) display.textContent = '00:00';
-            await autoCloseCaGate(dept, course);
+            await autoCloseCaGate(dept, course, level, semester);
             return;
         }
         const m = Math.floor(totalSeconds / 60);
@@ -1133,12 +1142,14 @@ function runCaTimer(totalSeconds, dept, course) {
     }, 1000);
 }
 
-async function autoCloseCaGate(dept, course) {
+async function autoCloseCaGate(dept, course, level, semester) {
     await sb.from('exam_sessions')
         .update({ is_active: 'false' })
         .eq('is_ca', true)
         .eq('department', dept)
-        .eq('course', course);
+        .eq('course', course)
+        .eq('level', level)
+        .eq('semester', semester);
 
     document.getElementById('caGateStatus').textContent        = 'CA GATE: CLOSED (EXPIRED)';
     document.getElementById('caGateStatus').style.color        = '#ff4444';
@@ -1150,11 +1161,13 @@ async function autoCloseCaGate(dept, course) {
 }
 
 async function forceLogoutCa() {
-    const dept   = document.getElementById('caDept').value;
-    const course = document.getElementById('caCourse').value.trim().toUpperCase();
-    if (!dept || !course) return alert('⚠️ Please select Department and enter Course code.');
+    const dept     = document.getElementById('caDept').value;
+    const course   = document.getElementById('caCourse').value.trim().toUpperCase();
+    const level    = document.getElementById('caLevel').value;
+    const semester = document.getElementById('caSemester').value;
+    if (!dept || !course || !level || !semester) return alert('⚠️ Please select all fields and enter Course code.');
 
-    if (!confirm(`🚨 Force logout ALL students currently in CA "${course}" for ${dept}?\n\nTheir answers will be lost and the gate will be closed.`)) return;
+    if (!confirm(`🚨 Force logout ALL students currently in CA "${course}" for ${dept} ${level}L ${semester}?\n\nTheir answers will be lost and the gate will be closed.`)) return;
 
     // Get students currently active in this CA course
     const { data: liveRows, error: liveErr } = await sb.from('live_monitoring')
@@ -1178,7 +1191,9 @@ async function forceLogoutCa() {
         .update({ is_active: 'false' })
         .eq('is_ca', true)
         .eq('department', dept)
-        .eq('course', course);
+        .eq('course', course)
+        .eq('level', level)
+        .eq('semester', semester);
     if (gateErr) return alert('❌ Gate close error: ' + safeErr(gateErr));
 
     clearInterval(_caTimerInterval);
@@ -1293,30 +1308,7 @@ document.getElementById('bursarStaffList')?.addEventListener('click', (e) => {
     });
 });
 
-
 // ── PAPER EXAM SCORES ─────────────────────────────────────────────────
-function populatePsFaculties() {
-    const facSelect = document.getElementById('psFaculty');
-    if (!facSelect) return;
-    facSelect.innerHTML = '<option value="">-- Select Faculty --</option>' +
-        allFaculties.map(f => `<option value="${sanitise(f.name)}">${sanitise(f.name)}</option>`).join('');
-}
-
-function updatePsDepartments() {
-    const facName = document.getElementById('psFaculty').value;
-    const deptSelect = document.getElementById('psDept');
-    if (!facName) {
-        deptSelect.innerHTML = '<option value="">-- Select Faculty First --</option>';
-        return;
-    }
-    const facObj = allFaculties.find(f => f.name === facName);
-    if (!facObj) return;
-    const filtered = allDepartments.filter(d => d.faculty_id === facObj.id);
-    deptSelect.innerHTML = filtered.length
-        ? filtered.map(d => `<option value="${sanitise(d.name)}">${sanitise(d.name)}</option>`).join('')
-        : '<option value="">No departments found</option>';
-}
-
 async function loadStudentsForPaperScores() {
     const faculty = document.getElementById('psFaculty').value;
     const dept    = document.getElementById('psDept').value;
