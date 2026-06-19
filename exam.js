@@ -452,16 +452,29 @@ async function startCountdown() {
     if (!student) return;
     const storedEndTime = sessionStorage.getItem('examSessionEndTime');
     let endTime = storedEndTime ? new Date(storedEndTime).getTime() : null;
+
+    const examType  = sessionStorage.getItem('examSessionType') || 'normal';
+    const activeSub = sessionStorage.getItem('activeSubject');
+
     if (!endTime) {
         const sb = await getSupabase();
-        const { data, error } = await sb
+        let query = sb
             .from('exam_sessions')
             .select('end_time, is_active')
-            .eq('department', student.dept)
-            .eq('level', student.level)
-            .eq('semester', student.semester)
-            .eq('is_carryover', false)
-            .maybeSingle();
+            .eq('department', student.dept);
+
+        if (examType === 'ca') {
+            query = query
+                .eq('is_ca', true)
+                .eq('course', activeSub);
+        } else {
+            query = query
+                .eq('level', student.level)
+                .eq('semester', student.semester)
+                .eq('is_carryover', false);
+        }
+
+        const { data, error } = await query.maybeSingle();
         if (error || !data?.end_time) {
             alert("Time configuration error. Contact Admin.");
             window.location.href = "dashboard.html";
@@ -493,14 +506,23 @@ async function startCountdown() {
     endTimeCheckInterval = setInterval(async () => {
         if (!examActive) return;
         const sb = await getSupabase();
-        const { data, error } = await sb
+        let pollQuery = sb
             .from('exam_sessions')
             .select('end_time')
-            .eq('department', student.dept)
-            .eq('level', student.level)
-            .eq('semester', student.semester)
-            .eq('is_carryover', false)
-            .maybeSingle();
+            .eq('department', student.dept);
+
+        if (examType === 'ca') {
+            pollQuery = pollQuery
+                .eq('is_ca', true)
+                .eq('course', activeSub);
+        } else {
+            pollQuery = pollQuery
+                .eq('level', student.level)
+                .eq('semester', student.semester)
+                .eq('is_carryover', false);
+        }
+
+        const { data, error } = await pollQuery.maybeSingle();
         if (!error && data?.end_time) {
             const newEnd = new Date(data.end_time).getTime();
             if (newEnd !== serverEndTime) {
@@ -643,6 +665,7 @@ async function finishExam(isAuto = false) {
         raw_answers: currentAnswers,
         questions_order: questions.map(q => ({ id: q.id })),
         is_carryover: examType === 'carryover',
+        is_ca: examType === 'ca',
         status: isAuto ? "Auto-Submitted" : "Completed"
     };
 

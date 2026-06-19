@@ -47,6 +47,9 @@
         </div>
 
         <div class="nav-section">Management</div>
+        <div class="nav-item" data-page="cagatekeeper">
+            <span class="icon">🚦</span> CA Gatekeeper
+        </div>
         <div class="nav-item" data-page="examcard">
             <span class="icon">🎫</span> Exam Card Release
         </div>
@@ -175,6 +178,11 @@
                     <option value="300">300</option>
                     <option value="400">400</option>
                     <option value="500">500</option>
+                    <option value="600">600</option>
+                    <option value="700">700</option>
+                    <option value="800">800</option>
+                    <option value="900">900</option>
+                    <option value="1000">1000</option>
                 </select>
             </div>
             <div>
@@ -336,6 +344,81 @@
             <input type="text" id="newVenue" placeholder="Venue (optional)">
         </div>
         <button id="addScheduleEntryBtn" class="btn btn-green">➕ Add to Schedule</button>
+    </div>
+</div>
+
+    <!-- ── PAGE: CA GATEKEEPER ── -->
+<div class="page" id="page-cagatekeeper">
+    <div class="page-header">
+        <h1>🚦 CA Gatekeeper</h1>
+        <p>Generate tokens, open/close gates and manage Continuous Assessment sessions</p>
+    </div>
+
+    <!-- Token Generation -->
+    <div class="card">
+        <h3 style="color:var(--green); border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:18px;">
+            🔑 Generate CA Token
+        </h3>
+        <div class="grid-2">
+            <div>
+                <span class="label-tag">Faculty</span>
+                <select id="caFaculty"><option value="">-- Select Faculty --</option></select>
+            </div>
+            <div>
+                <span class="label-tag">Department</span>
+                <select id="caDept"><option value="">-- Select Faculty First --</option></select>
+            </div>
+            <div>
+                <span class="label-tag">Level</span>
+                <select id="caLevel"><option value="">-- Choose Level --</option></select>
+            </div>
+            <div>
+                <span class="label-tag">Semester</span>
+                <select id="caSemester">
+                    <option value="">-- Semester --</option>
+                    <option value="1st">1st Semester</option>
+                    <option value="2nd">2nd Semester</option>
+                </select>
+            </div>
+        </div>
+        <span class="label-tag" style="margin-top:12px;">Course Code</span>
+        <input type="text" id="caCourse" placeholder="e.g. MLT201, GST101" style="text-transform:uppercase; margin-bottom:16px;">
+
+        <button id="caGenerateTokenBtn" class="btn btn-green" style="width:100%;">🔑 GENERATE CA TOKEN</button>
+
+        <div style="margin-top:18px; background:rgba(0,255,136,0.06); border:1px solid var(--border); border-radius:10px; padding:18px; text-align:center;">
+            <div style="font-size:0.75rem; color:var(--muted); margin-bottom:6px;">Active CA Token</div>
+            <div id="caActiveToken" style="font-size:2.5rem; font-weight:900; font-family:monospace; color:var(--green); letter-spacing:6px;">----</div>
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:6px;">Course: <strong id="caActiveCourse" style="color:white;">---</strong></div>
+        </div>
+    </div>
+
+    <!-- Gate Control -->
+    <div class="card">
+        <h3 style="color:var(--green); border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:18px;">
+            🚪 Gate Control
+        </h3>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+            <span id="caGateStatus" style="font-size:1.1rem; font-weight:bold; color:#ff4444;">CA GATE: CLOSED</span>
+            <button id="caToggleGateBtn" class="btn btn-green" style="min-width:180px;">🔓 Open Gate</button>
+        </div>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:180px;">
+                <span class="label-tag">Duration (minutes)</span>
+                <input type="number" id="caDuration" value="30" min="1" max="180" placeholder="e.g. 30">
+            </div>
+            <div style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap;">
+                <button id="caStartExamBtn" class="btn btn-green">▶ START CA</button>
+                <button id="caForceLogoutBtn" class="btn btn-red">🚨 Force Logout All</button>
+            </div>
+        </div>
+
+        <div style="margin-top:16px; text-align:center;">
+            <span style="font-size:0.75rem; color:var(--muted);">Timer</span>
+            <div id="caTimerDisplay" style="font-size:2rem; font-weight:bold; font-family:monospace; color:var(--green);">00:00</div>
+        </div>
     </div>
 </div>
 

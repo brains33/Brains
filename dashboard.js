@@ -111,6 +111,7 @@ window.onload = async function() {
         // Start all original functions
         fetchExams();
         fetchCarryoverExams();
+        fetchCaExams();
         syncGatekeeper();
         checkResultsReleased();
         checkExamCardReleased();
@@ -120,6 +121,7 @@ window.onload = async function() {
         setInterval(checkResultsReleased, 30000);
         setInterval(checkExamCardReleased, 30000);
         setInterval(checkScheduledExamCardReleased, 30000);
+        setInterval(fetchCaExams, 30000);
         syncClassroom();
         setInterval(syncClassroom, 60000);
         checkForLiveClass();
@@ -363,6 +365,21 @@ async function verifyAndStart() {
             if (carrySession) session = carrySession;
         }
 
+        // CA fallback
+        if (!session) {
+            const { data: caSession } = await sb.from('exam_sessions')
+                .select('*')
+                .eq('token_code', tokenInput)
+                .eq('department', student.dept)
+                .eq('course', activeSub)
+                .eq('is_ca', true)
+                .maybeSingle();
+            if (caSession) {
+                session = caSession;
+                sessionStorage.setItem('examSessionType', 'ca');
+            }
+        }
+
         if (error && !session) {
             sessionStorage.setItem(attemptKey, attempts + 1);
             if (attempts + 1 >= 3) sessionStorage.setItem(lockKey, Date.now() + 10 * 60 * 1000);
@@ -523,6 +540,85 @@ async function fetchCarryoverExams() {
     }
 }
 
+async function fetchCaExams() {
+    const listDiv = document.getElementById('caSubjectList');
+    if (!listDiv || !localData) return;
+
+    try {
+        const { data: sessions, error } = await sb
+            .from('exam_sessions')
+            .select('*')
+            .eq('is_ca', true)
+            .eq('is_active', 'true')
+            .eq('department', localData.dept)
+            .eq('level', localData.level)
+            .eq('semester', localData.semester)
+            .order('course', { ascending: true });
+
+        if (error) throw error;
+        if (!sessions || sessions.length === 0) {
+            listDiv.innerHTML = '<p style="color:#a0aec0;">No CA exams available right now.</p>';
+            return;
+        }
+
+        // Filter out courses already passed
+        const { data: results } = await sb
+            .from('results')
+            .select('subject, score')
+            .eq('matrix_no', localData.matrix);
+
+        const passedCourses = new Set();
+        (results || []).forEach(r => {
+            if (!isNaN(parseFloat(r.score)) && parseFloat(r.score) >= 50)
+                passedCourses.add((r.subject || '').toUpperCase().trim());
+        });
+
+        const eligible = sessions.filter(s =>
+            !passedCourses.has((s.course || '').toUpperCase().trim())
+        );
+
+        if (eligible.length === 0) {
+            listDiv.innerHTML = '<p style="color:#a0aec0;">No CA exams available for you.</p>';
+            return;
+        }
+
+        listDiv.innerHTML = eligible.map(s => {
+            const safeCourse = sanitise(s.course);
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:15px; background:white; border-radius:8px; border-left:5px solid #3b82f6;">
+                    <div>
+                        <b style="color:#333;">${safeCourse}</b>
+                        <small style="color:#666; display:block;">${sanitise(localData.level)}L | ${sanitise(localData.semester)} Semester</small>
+                    </div>
+                    <button data-course="${safeCourse}"
+                            data-token="${sanitise(s.token_code)}"
+                            class="select-ca-btn"
+                            style="background:#3b82f6; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold;">
+                        SELECT
+                    </button>
+                </div>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.select-ca-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const course = btn.getAttribute('data-course');
+                const token  = btn.getAttribute('data-token');
+                sessionStorage.setItem('activeSubject', course);
+                sessionStorage.setItem('examSessionType', 'ca');
+                const tokenInput = document.getElementById('examToken');
+                if (tokenInput) tokenInput.value = token;
+                document.getElementById('selectedCourseText').textContent =
+                    `✅ CA: ${course} selected — token pre-filled. Click START EXAMINATION.`;
+                tokenInput?.focus();
+            });
+        });
+    } catch (err) {
+        console.error('CA fetch error:', err);
+        listDiv.innerHTML = '<p style="color:red;">Error loading CA exams.</p>';
+    }
+}
+
 async function logout() {
     const token = sessionStorage.getItem("studentToken");
     if (token) {
@@ -654,30 +750,134 @@ async function checkResultsReleased() {
     }
 }
 
+// ── GRADING HELPER ────────────────────────────────────────────────────
+function computeGrade(total) {
+    if (total >= 70) return { grade: 'A', remark: 'Excellent' };
+    if (total >= 60) return { grade: 'B', remark: 'Very Good' };
+    if (total >= 50) return { grade: 'C', remark: 'Good' };
+    if (total >= 40) return { grade: 'D', remark: 'Pass' };
+    return { grade: 'F', remark: 'Fail' };
+}
+
+// ── GPA HELPERS ───────────────────────────────────────────────────────
+function gradePoint(grade) {
+    // Nigerian polytechnic / college of health grading scale (5-point)
+    if (grade === 'A') return 5;
+    if (grade === 'B') return 4;
+    if (grade === 'C') return 3;
+    if (grade === 'D') return 2;
+    return 0; // F
+}
+
+function computeGPA(courseEntries) {
+    // courseEntries: [{ total, grade, creditUnits }, ...]
+    let totalQP = 0, totalUnits = 0;
+    for (const c of courseEntries) {
+        if (c.grade === 'F' || c.creditUnits === 0) {
+            totalQP    += 0;
+            totalUnits += c.creditUnits;
+        } else {
+            totalQP    += gradePoint(c.grade) * c.creditUnits;
+            totalUnits += c.creditUnits;
+        }
+    }
+    if (totalUnits === 0) return { gpa: null, totalUnits: 0, totalQP: 0 };
+    return { gpa: (totalQP / totalUnits).toFixed(2), totalUnits, totalQP };
+}
+
 async function downloadResultsPDF() {
     if (!localData) return alert("Student data not loaded.");
+
+    // 1. Fetch all results for this student
     const { data: results, error } = await sb.from('results')
         .select('*')
         .eq('matrix_no', localData.matrix)
         .order('created_at', { ascending: true });
     if (error || !results || results.length === 0) return alert("No results yet.");
-    const rows = results.map((r, i) => {
-        const course = (r.subject || r.course || 'N/A').toUpperCase();
-        const score  = r.score ?? 'N/A';
-        const pass   = (r.score || 0) >= 50;
+
+    // 2. Collect unique course codes to look up credit units
+    const courseKeys = [...new Set(results.map(r => (r.subject || r.course || 'N/A').toUpperCase()))];
+
+    // 3. Fetch credit units from course_catalog (fallback = 3 if not found)
+    let catalogMap = {};
+    try {
+        const { data: catalog } = await sb.from('course_catalog')
+            .select('course_code, credit_units, semester')
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .in('course_code', courseKeys);
+        if (catalog) {
+            catalog.forEach(c => {
+                catalogMap[c.course_code.toUpperCase()] = c.credit_units;
+            });
+        }
+    } catch (e) { /* catalog may not exist yet — use fallback */ }
+
+    // 4. Group by course: pair exam + CA
+    const courseMap = {};
+    for (const r of results) {
+        const key = (r.subject || r.course || 'N/A').toUpperCase();
+        if (!courseMap[key]) courseMap[key] = { exam: null, ca: null };
+        if (r.is_ca) courseMap[key].ca   = r;
+        else         courseMap[key].exam = r;
+    }
+
+    // 5. Build rows + collect data for GPA computation
+    const courseEntries = [];
+    let rowIdx = 0;
+    const rows = Object.entries(courseMap).map(([course, data]) => {
+        rowIdx++;
+        const caScore   = data.ca   ? Math.min(30, Math.round(parseFloat(data.ca.score)   * 0.30)) : 0;
+        const examScore = data.exam ? Math.min(70, Math.round(parseFloat(data.exam.score) * 0.70)) : 0;
+        const total     = Math.min(100, caScore + examScore);
+        const { grade, remark } = computeGrade(total);
+        const creditUnits = catalogMap[course] !== undefined ? catalogMap[course] : 3;
+        const gp          = gradePoint(grade);
+        const qp          = gp * creditUnits;
+        const gradeColor  = grade === 'F' ? '#cc0000' : grade === 'D' ? '#b45309' : '#0f5132';
+        const bg          = rowIdx % 2 === 0 ? '#f9f9f9' : '#fff';
+
+        courseEntries.push({ course, total, grade, creditUnits, gp, qp });
+
         return `
-        <tr style="background:${i % 2 === 0 ? '#f9f9f9' : '#fff'}">
-            <td style="text-align:center;">${i + 1}</td>
+        <tr style="background:${bg}">
+            <td style="text-align:center;">${rowIdx}</td>
             <td style="font-weight:bold; letter-spacing:0.5px;">${course}</td>
-            <td style="text-align:center; font-weight:bold; color:${pass ? '#0f5132' : '#cc0000'};">${score}</td>
+            <td style="text-align:center;">${data.ca   ? caScore   : '—'}</td>
+            <td style="text-align:center;">${data.exam ? examScore : '—'}</td>
+            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${total}</td>
+            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${grade}</td>
+            <td style="text-align:center; font-weight:bold; color:#555;">${creditUnits}</td>
+            <td style="text-align:center; color:#555;">${gp}</td>
+            <td style="text-align:center; color:#555;">${qp}</td>
             <td style="text-align:center;">
                 <span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:bold;
-                             background:${pass ? '#d1fae5' : '#fee2e2'}; color:${pass ? '#0f5132' : '#cc0000'};">
-                    ${pass ? 'PASS' : 'FAIL'}
+                             background:${grade === 'F' ? '#fee2e2' : '#d1fae5'}; color:${gradeColor};">
+                    ${remark}
                 </span>
             </td>
         </tr>`;
     }).join('');
+
+    // 6. Compute GPA (current semester) and CGPA (all courses combined)
+    const { gpa, totalUnits, totalQP } = computeGPA(courseEntries);
+    const gpaColor  = gpa === null ? '#555' : parseFloat(gpa) >= 3.5 ? '#0f5132' : parseFloat(gpa) >= 2.0 ? '#b45309' : '#cc0000';
+    const gpaBlock  = gpa !== null ? `
+        <div class="gpa-box">
+            <div class="gpa-item"><label>Total Credit Units</label><span>${totalUnits}</span></div>
+            <div class="gpa-item"><label>Total Quality Points</label><span>${totalQP}</span></div>
+            <div class="gpa-item"><label>GPA (${localData.semester} Semester)</label>
+                <span style="color:${gpaColor}; font-size:1.4rem;">${gpa}</span>
+            </div>
+            <div class="gpa-item"><label>CGPA Remark</label>
+                <span style="color:${gpaColor};">${parseFloat(gpa) >= 3.5 ? 'Distinction' : parseFloat(gpa) >= 3.0 ? 'Upper Credit' : parseFloat(gpa) >= 2.0 ? 'Lower Credit' : parseFloat(gpa) >= 1.0 ? 'Pass' : 'Fail'}</span>
+            </div>
+        </div>` : '';
+
+    const catalogNote = Object.keys(catalogMap).length < courseEntries.length
+        ? '<p style="color:#b45309; font-size:0.72rem; margin-top:6px;">⚠️ Some credit units defaulted to 3 (not yet set in the course catalog). Contact the admin to update the catalog for accurate GPA.</p>'
+        : '';
+
     const printHTML = `<!DOCTYPE html>
 <html><head><title>Result Slip — ${localData.name}</title>
 <style>
@@ -693,13 +893,18 @@ async function downloadResultsPDF() {
   thead tr { background:#0f5132; color:white; }
   th { padding:10px 12px; text-align:left; font-size:0.8rem; letter-spacing:0.5px; }
   td { border:1px solid #ddd; padding:10px 12px; }
+  .key-box { margin-top:18px; padding:10px 14px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:0.75rem; color:#14532d; }
+  .key-box strong { display:block; margin-bottom:4px; }
+  .gpa-box { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px 20px; border:2px solid #0f5132; border-radius:10px; padding:16px 20px; margin-top:20px; background:#f0fdf4; }
+  .gpa-item label { display:block; font-size:0.65rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
+  .gpa-item span  { font-weight:bold; color:#0f5132; font-size:1.05rem; }
   .footer { margin-top:28px; text-align:center; font-size:0.7rem; color:#aaa; border-top:1px solid #eee; padding-top:10px; }
   @media print { body { padding:15px; } }
 </style>
 </head>
 <body>
   <div class="header">
-    <h1>🎓 Barau Mu’azu Universal College of Health Science and Technology, Kontagora — OFFICIAL RESULT SLIP</h1>
+    <h1>🎓 BRAINS AI — OFFICIAL RESULT SLIP</h1>
     <p>Academic Result Record &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
   </div>
   <div class="info-box">
@@ -713,14 +918,27 @@ async function downloadResultsPDF() {
   <table>
     <thead>
       <tr>
-        <th style="width:40px;">#</th>
+        <th style="width:32px;">#</th>
         <th>Course Code</th>
-        <th style="width:100px; text-align:center;">Score (%)</th>
-        <th style="width:80px; text-align:center;">Status</th>
+        <th style="width:58px; text-align:center;">CA (30)</th>
+        <th style="width:63px; text-align:center;">Exam (70)</th>
+        <th style="width:63px; text-align:center;">Total</th>
+        <th style="width:48px; text-align:center;">Grade</th>
+        <th style="width:42px; text-align:center;">Units</th>
+        <th style="width:36px; text-align:center;">GP</th>
+        <th style="width:36px; text-align:center;">QP</th>
+        <th style="width:85px; text-align:center;">Remark</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>
+  ${gpaBlock}
+  ${catalogNote}
+  <div class="key-box">
+    <strong>Grading Key:</strong>
+    A — 70+ (Excellent, GP=5) &nbsp;|&nbsp; B — 60–69 (Very Good, GP=4) &nbsp;|&nbsp; C — 50–59 (Good, GP=3) &nbsp;|&nbsp; D — 40–49 (Pass, GP=2) &nbsp;|&nbsp; F — Below 40 (Fail, GP=0)
+    <br>GPA = Total Quality Points ÷ Total Credit Units &nbsp;|&nbsp; Distinction ≥ 3.5 &nbsp;|&nbsp; Upper Credit ≥ 3.0 &nbsp;|&nbsp; Lower Credit ≥ 2.0 &nbsp;|&nbsp; Pass ≥ 1.0
+  </div>
   <div class="footer">BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This document is auto-generated.</div>
 </body></html>`;
     const printWindow = window.open('', '_blank');
@@ -815,7 +1033,7 @@ async function downloadExamCardPDF() {
 <body>
   <div class="header">
     <div class="header-text">
-      <h1>🎓 Barau Mu’azu Universal College of Health Science and Technology, Kontagora — STUDENT EXAM CARD</h1>
+      <h1>🎓 BRAINS AI — STUDENT EXAM CARD</h1>
       <p>Official CBT Examination Hall Ticket &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
       <p style="margin-top:4px; color:#0f5132; font-size:0.7rem; font-weight:bold;">
         Academic Session: ${new Date().getFullYear()}/${new Date().getFullYear() + 1}
@@ -951,7 +1169,7 @@ async function downloadScheduledExamCardPDF() {
 <body>
   <div class="header">
     <div class="header-text">
-      <h1>🎓 Barau Mu’azu Universal College of Health Science and Technology, Kontagora — SCHEDULED EXAM CARD</h1>
+      <h1>🎓 BRAINS AI — SCHEDULED EXAM CARD</h1>
       <p>Official Physical Examination Hall Ticket &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
       <p style="margin-top:4px; color:#0f5132; font-size:0.7rem; font-weight:bold;">
         Academic Session: ${new Date().getFullYear()}/${new Date().getFullYear() + 1}

@@ -96,13 +96,17 @@ function showSection(name) {
         aifeed: 'AI Brain Feed',
         markadjust: 'Mark Adjustment',
         carryover: 'Carryover Exams',
-        recyclebin: 'Recycle Bin'
+        recyclebin: 'Recycle Bin',
+        catalog: 'Course Catalog'
     };
 
     document.getElementById('topbarTitle').textContent = titles[name] || 'BRAINS AI';
 
     // Load recycle bin data when switching to that section
     if (name === 'recyclebin') loadRecycleBin();
+
+    // Load course catalog when switching to that section
+    if (name === 'catalog') loadCourseCatalog();
 
     if (window.innerWidth < 900) closeSidebar();
 }
@@ -159,6 +163,20 @@ document.getElementById('fullProctorGrid')?.addEventListener('click', (e) => {
         btn.addEventListener('click', () => showSection(btn.getAttribute('data-section')));
     });
     
+    // Course Catalog listeners
+    document.getElementById('catFaculty')?.addEventListener('change', updateCatalogDepartments);
+    document.getElementById('catAddBtn')?.addEventListener('click', addCatalogEntry);
+    document.getElementById('catList')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const id = btn.getAttribute('data-cat-id');
+        if (btn.classList.contains('delete-cat-btn')) deleteCatalogEntry(id);
+    });
+    document.getElementById('catFilterFaculty')?.addEventListener('change', updateCatalogFilterDepts);
+    document.getElementById('catFilterDept')?.addEventListener('change', loadCourseCatalog);
+    document.getElementById('catFilterLevel')?.addEventListener('change', loadCourseCatalog);
+    document.getElementById('catFilterSemester')?.addEventListener('change', loadCourseCatalog);
+
     document.getElementById('rbFaculty')?.addEventListener('change', updateRBFilterDepartments);
 document.getElementById('rbDept')?.addEventListener('change', loadRecycleBin);
 document.getElementById('rbLevel')?.addEventListener('change', loadRecycleBin);
@@ -688,6 +706,16 @@ if (rbLevelEl) rbLevelEl.innerHTML = '<option value="">-- All Levels --</option>
                 LEVEL_OPTIONS.map(l => `<option value="${l}">${l}</option>`).join('');
         }
 
+        // Catalog form faculty dropdown
+        const catFacEl = document.getElementById('catFaculty');
+        if (catFacEl) catFacEl.innerHTML = '<option value="">-- Select Faculty --</option>' +
+            window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
+
+        // Catalog filter faculty dropdown
+        const catFilterFacEl = document.getElementById('catFilterFaculty');
+        if (catFilterFacEl) catFilterFacEl.innerHTML = '<option value="">-- All Faculties --</option>' +
+            window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
+
         loadStaticDropdowns();
         if (typeof loadUsers === "function") loadUsers();
     } catch (err) {
@@ -1164,44 +1192,95 @@ async function saveAdjustedScore(resultId, newScore) {
     alert("✅ Score updated successfully!");
     fetchFreshData();
 }
+// ── GRADING HELPER ────────────────────────────────────────────────────
+function computeGrade(total) {
+    if (total >= 70) return { grade: 'A', remark: 'Excellent',  color: '#00ff88' };
+    if (total >= 60) return { grade: 'B', remark: 'Very Good',  color: '#4ade80' };
+    if (total >= 50) return { grade: 'C', remark: 'Good',       color: '#facc15' };
+    if (total >= 40) return { grade: 'D', remark: 'Pass',       color: '#fb923c' };
+    return            { grade: 'F', remark: 'Fail',       color: '#ff4444' };
+}
+
 function renderResultsUI() {
     const grid = document.getElementById("adminResultsGrid");
     if (!grid) return;
     const searchTerm = document.getElementById("courseSearchInput").value.toLowerCase();
+
+    // Group ALL results by course, then by matrix_no so we can pair CA + Exam
     const groupedByCourse = allResults.reduce((acc, cur) => {
         const key = cur.subject || "Unknown Course";
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(cur);
+        if (!acc[key]) acc[key] = {};
+        const mno = cur.matrix_no;
+        if (!acc[key][mno]) acc[key][mno] = { name: cur.name, dept: cur.department, semester: cur.semester, matrix_no: mno, ca: null, exam: null };
+        if (cur.is_ca) acc[key][mno].ca = cur;
+        else           acc[key][mno].exam = cur;
         return acc;
     }, {});
-    grid.innerHTML = Object.keys(groupedByCourse).filter(course => course.toLowerCase().includes(searchTerm)).map(course => `
-        <div style="background: rgba(0,255,136,0.02); border: 1px solid #333; border-radius: 8px; margin-bottom: 25px; overflow: hidden;">
-            <div style="background: #0f5132; padding: 12px; border-bottom: 1px solid #00ff88;"><h3 style="margin:0; color: #00ff88;">📚 COURSE: ${safeValue(course)}</h3></div>
-            <div style="padding: 10px; overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.85em; color: white;">
-                    <thead><tr style="text-align: left; border-bottom: 1px solid #444; color: #00ff88;"><th style="padding: 10px;">STUDENT NAME</th><th>MATRIX NO</th><th>DEPT</th><th>SEM</th><th>SCORE</th><th style="text-align: right;">ACTION</th></tr></thead>
-                    <tbody>${groupedByCourse[course].map(res => `
-                        <tr style="border-bottom: 1px solid #222;">
-                            <td style="padding: 10px; text-transform: uppercase;">${safeValue(res.name)}</td>
-                            <td>${safeValue(res.matrix_no)}</td>
-                            <td>${safeValue(res.department)}</td>
-                            <td>${safeValue(res.semester || '1st')}</td>
-                            <td>
-                                <div style="display:flex;align-items:center;gap:5px;">
-                                    <input type="number" min="0" max="100" value="${res.score}"
-                                        class="score-input" data-result-id="${res.id}"
-                                        style="width:58px;padding:4px 6px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.9em;">
-                                    <span style="color:#00ff88;">%</span>
-                                    <button class="save-score-btn" data-result-id="${res.id}"
-                                        style="background:#00ff88;color:#000;border:none;padding:3px 7px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:0.75rem;">💾</button>
-                                </div>
-                            </td>
-                            <td style="text-align: right;"><button data-result-id="${res.id}" data-context="lecturer" class="delete-result-btn" style="background:#ff4444; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer;">🗑️</button></td>
-                        </tr>`).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>`).join('');
+
+    grid.innerHTML = Object.keys(groupedByCourse)
+        .filter(course => course.toLowerCase().includes(searchTerm))
+        .map(course => {
+            const students = Object.values(groupedByCourse[course]);
+            const rows = students.map(s => {
+                const caRaw   = s.ca   ? parseFloat(s.ca.score)   : null;
+                const examRaw = s.exam ? parseFloat(s.exam.score) : null;
+                const caScore   = caRaw   !== null ? Math.min(30, Math.round(caRaw   * 0.30)) : null;
+                const examScore = examRaw !== null ? Math.min(70, Math.round(examRaw * 0.70)) : null;
+                const total = Math.min(100, (caScore ?? 0) + (examScore ?? 0));
+                const { grade, remark, color } = computeGrade(total);
+                // editable raw inputs (admin edits the raw score, not the weighted)
+                const caId   = s.ca   ? s.ca.id   : null;
+                const examId = s.exam ? s.exam.id : null;
+                return `
+                <tr style="border-bottom: 1px solid #222;">
+                    <td style="padding:8px; text-transform:uppercase;">${safeValue(s.name)}</td>
+                    <td>${safeValue(s.matrix_no)}</td>
+                    <td>${safeValue(s.dept)}</td>
+                    <td>${safeValue(s.semester || '1st')}</td>
+                    <td style="text-align:center;">
+                        ${caId ? `<div style="display:flex;align-items:center;gap:4px;">
+                            <input type="number" min="0" max="100" value="${s.ca.score}"
+                                class="score-input" data-result-id="${caId}"
+                                style="width:52px;padding:3px 5px;border-radius:4px;border:1px solid #4ade80;background:#0a2e1a;color:#4ade80;font-weight:bold;text-align:center;font-size:0.85em;">
+                            <button class="save-score-btn" data-result-id="${caId}" style="background:#4ade80;color:#000;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
+                        </div>` : '<span style="color:#555;">—</span>'}
+                    </td>
+                    <td style="text-align:center;">
+                        ${examId ? `<div style="display:flex;align-items:center;gap:4px;">
+                            <input type="number" min="0" max="100" value="${s.exam.score}"
+                                class="score-input" data-result-id="${examId}"
+                                style="width:52px;padding:3px 5px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.85em;">
+                            <button class="save-score-btn" data-result-id="${examId}" style="background:#00ff88;color:#000;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
+                        </div>` : '<span style="color:#555;">—</span>'}
+                    </td>
+                    <td style="text-align:center; font-weight:bold; color:${color};">${total}</td>
+                    <td style="text-align:center; font-weight:bold; color:${color};">${grade}</td>
+                    <td style="text-align:center; font-size:0.8em; color:${color};">${remark}</td>
+                    <td style="text-align:right;">
+                        ${caId   ? `<button data-result-id="${caId}"   data-context="lecturer" class="delete-result-btn" style="background:#ff4444;color:white;border:none;padding:4px 7px;border-radius:4px;cursor:pointer;font-size:0.75rem;margin-bottom:2px;">🗑️CA</button>` : ''}
+                        ${examId ? `<button data-result-id="${examId}" data-context="lecturer" class="delete-result-btn" style="background:#ff4444;color:white;border:none;padding:4px 7px;border-radius:4px;cursor:pointer;font-size:0.75rem;">🗑️EX</button>` : ''}
+                    </td>
+                </tr>`;
+            }).join('');
+            return `
+            <div style="background:rgba(0,255,136,0.02); border:1px solid #333; border-radius:8px; margin-bottom:25px; overflow:hidden;">
+                <div style="background:#0f5132; padding:12px; border-bottom:1px solid #00ff88;"><h3 style="margin:0; color:#00ff88;">📚 COURSE: ${safeValue(course)}</h3></div>
+                <div style="padding:10px; overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.82em; color:white;">
+                        <thead><tr style="text-align:left; border-bottom:1px solid #444; color:#00ff88;">
+                            <th style="padding:8px;">STUDENT NAME</th><th>MATRIX NO</th><th>DEPT</th><th>SEM</th>
+                            <th style="text-align:center;">CA (raw)</th>
+                            <th style="text-align:center;">EXAM (raw)</th>
+                            <th style="text-align:center;">TOTAL</th>
+                            <th style="text-align:center;">GRADE</th>
+                            <th style="text-align:center;">REMARK</th>
+                            <th style="text-align:right;">ACTION</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>`;
+        }).join('');
 }
 function renderMasterUI() {
     const grid = document.getElementById("masterRecordsGrid");
@@ -1209,43 +1288,93 @@ function renderMasterUI() {
     const searchTerm = document.getElementById("masterSearchInput").value.toLowerCase();
     const masterData = allResults.reduce((acc, cur) => {
         const key = cur.name.toUpperCase();
-        if (!acc[key]) acc[key] = { info: cur, exams: [] };
-        acc[key].exams.push(cur);
+        if (!acc[key]) acc[key] = { info: cur, courses: {} };
+        const course = (cur.subject || cur.course || 'N/A').toUpperCase();
+        if (!acc[key].courses[course]) acc[key].courses[course] = { ca: null, exam: null };
+        if (cur.is_ca) acc[key].courses[course].ca = cur;
+        else           acc[key].courses[course].exam = cur;
         return acc;
     }, {});
-    const filteredStudents = Object.keys(masterData).filter(name => name.toLowerCase().includes(searchTerm) || masterData[name].info.matrix_no?.toLowerCase().includes(searchTerm));
+
+    const filteredStudents = Object.keys(masterData).filter(name =>
+        name.toLowerCase().includes(searchTerm) ||
+        masterData[name].info.matrix_no?.toLowerCase().includes(searchTerm)
+    );
+
     grid.innerHTML = filteredStudents.map(name => {
         const student = masterData[name];
-        const totalPoints = student.exams.reduce((sum, ex) => sum + Number(ex.score), 0);
-        const avgPercent = Math.round(totalPoints / student.exams.length);
-        const isPassing = avgPercent >= 50;
+        let grandTotal = 0, courseCount = 0;
+
+        const rows = Object.entries(student.courses).map(([course, data]) => {
+            const caRaw   = data.ca   ? parseFloat(data.ca.score)   : null;
+            const examRaw = data.exam ? parseFloat(data.exam.score) : null;
+            const caScore   = caRaw   !== null ? Math.min(30, Math.round(caRaw   * 0.30)) : null;
+            const examScore = examRaw !== null ? Math.min(70, Math.round(examRaw * 0.70)) : null;
+            const total = Math.min(100, (caScore ?? 0) + (examScore ?? 0));
+            const { grade, remark, color } = computeGrade(total);
+            grandTotal += total;
+            courseCount++;
+            const caId   = data.ca   ? data.ca.id   : null;
+            const examId = data.exam ? data.exam.id : null;
+            return `
+            <tr style="border-bottom:1px solid #222;">
+                <td style="padding:8px;">${course}</td>
+                <td style="text-align:center;">${data.ca ? data.ca.semester || '—' : (data.exam ? data.exam.semester || '—' : '—')}</td>
+                <td style="text-align:center;">
+                    ${caId ? `<div style="display:flex;align-items:center;gap:4px;">
+                        <input type="number" min="0" max="100" value="${data.ca.score}"
+                            class="score-input" data-result-id="${caId}"
+                            style="width:50px;padding:3px 5px;border-radius:4px;border:1px solid #4ade80;background:#0a2e1a;color:#4ade80;font-weight:bold;text-align:center;font-size:0.85em;">
+                        <button class="save-score-btn" data-result-id="${caId}" style="background:#4ade80;color:#000;border:none;padding:2px 5px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
+                    </div>` : '<span style="color:#555;">—</span>'}
+                </td>
+                <td style="text-align:center;">
+                    ${examId ? `<div style="display:flex;align-items:center;gap:4px;">
+                        <input type="number" min="0" max="100" value="${data.exam.score}"
+                            class="score-input" data-result-id="${examId}"
+                            style="width:50px;padding:3px 5px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.85em;">
+                        <button class="save-score-btn" data-result-id="${examId}" style="background:#00ff88;color:#000;border:none;padding:2px 5px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
+                    </div>` : '<span style="color:#555;">—</span>'}
+                </td>
+                <td style="text-align:center; font-weight:bold; color:${color};">${total}</td>
+                <td style="text-align:center; font-weight:bold; color:${color};">${grade}</td>
+                <td style="text-align:center; font-size:0.82em; color:${color};">${remark}</td>
+                <td style="text-align:right;">
+                    ${caId   ? `<button data-result-id="${caId}"   data-context="master" class="delete-result-btn" style="background:none;border:1px solid #ff4444;color:#ff4444;cursor:pointer;padding:3px 7px;border-radius:4px;font-size:0.72rem;margin-bottom:2px;">🗑️CA</button>` : ''}
+                    ${examId ? `<button data-result-id="${examId}" data-context="master" class="delete-result-btn" style="background:none;border:1px solid #ff4444;color:#ff4444;cursor:pointer;padding:3px 7px;border-radius:4px;font-size:0.72rem;">🗑️EX</button>` : ''}
+                </td>
+            </tr>`;
+        }).join('');
+
+        const avgTotal = courseCount > 0 ? Math.round(grandTotal / courseCount) : 0;
+        const { grade: avgGrade, remark: avgRemark, color: avgColor } = computeGrade(avgTotal);
+
         return `
         <div style="background:#111; margin-bottom:25px; border-radius:12px; border:1px solid #333; overflow:hidden; border-left:5px solid #00ff88;">
             <div style="background:#000; padding:15px;"><h2 style="margin:0; color:#00ff88; font-size:1.1em;">👤 ${safeValue(name)} &nbsp;<span style="color:#aaa; font-size:0.85em;">(MATRIC: ${safeValue(student.info.matrix_no)})</span></h2></div>
             <div style="padding:15px;">
-                <table style="width:100%; color:white; font-size:0.9em; border-collapse:collapse;">
-                    <thead><tr style="color:#00ff88; text-align:left; border-bottom:1px solid #333;"><th style="padding:8px;">COURSE</th><th>SEM</th><th>SCORE</th><th style="text-align:right;">ACTION</th></tr></thead>
-                    <tbody>${student.exams.map(ex => `
-                        <tr style="border-bottom:1px solid #222;">
-                            <td style="padding:10px;">${safeValue(ex.subject)}</td>
-                            <td>${safeValue(ex.semester || '1st')}</td>
-                            <td>
-                                <div style="display:flex;align-items:center;gap:5px;">
-                                    <input type="number" min="0" max="100" value="${ex.score}"
-                                        class="score-input" data-result-id="${ex.id}"
-                                        style="width:58px;padding:4px 6px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.9em;">
-                                    <span style="color:#00ff88;">%</span>
-                                    <button class="save-score-btn" data-result-id="${ex.id}"
-                                        style="background:#00ff88;color:#000;border:none;padding:3px 7px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:0.75rem;">💾</button>
-                                </div>
-                            </td>
-                            <td style="text-align:right;"><button data-result-id="${ex.id}" data-context="master" class="delete-result-btn" style="background:none; border:1px solid #ff4444; color:#ff4444; cursor:pointer; padding:4px 8px; border-radius:4px;">🗑️ DELETE</button></td>
-                        </tr>`).join('')}
-                    </tbody>
+                <table style="width:100%; color:white; font-size:0.88em; border-collapse:collapse;">
+                    <thead><tr style="color:#00ff88; text-align:left; border-bottom:1px solid #333;">
+                        <th style="padding:8px;">COURSE</th><th>SEM</th>
+                        <th style="text-align:center;">CA (raw)</th>
+                        <th style="text-align:center;">EXAM (raw)</th>
+                        <th style="text-align:center;">TOTAL</th>
+                        <th style="text-align:center;">GRADE</th>
+                        <th style="text-align:center;">REMARK</th>
+                        <th style="text-align:right;">ACTION</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
                 </table>
                 <div style="margin-top:15px; padding:12px 15px; background:#1a1a1a; border-radius:8px; border-top:2px solid #333; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                    <div style="font-size:0.9em; color:#ccc;">📊 <strong style="color:white;">Total Points:</strong> ${totalPoints}pts | <strong style="color:white;">Average:</strong> ${avgPercent}% <span style="color:#666;"> (${student.exams.length} course${student.exams.length>1?'s':''})</span></div>
-                    <div style="font-size:0.95em; font-weight:bold; padding:6px 20px; border-radius:20px; background:${isPassing?'rgba(0,255,136,0.15)':'rgba(255,68,68,0.15)'}; color:${isPassing?'#00ff88':'#ff4444'}; border:2px solid ${isPassing?'#00ff88':'#ff4444'};">${isPassing?'✅ PASS':'❌ FAIL'}</div>
+                    <div style="font-size:0.9em; color:#ccc;">
+                        📊 <strong style="color:white;">Courses:</strong> ${courseCount} &nbsp;|&nbsp;
+                        <strong style="color:white;">Avg Total:</strong> ${avgTotal}/100
+                    </div>
+                    <div style="font-size:0.95em; font-weight:bold; padding:6px 20px; border-radius:20px;
+                                background:${avgGrade === 'F' ? 'rgba(255,68,68,0.15)' : 'rgba(0,255,136,0.15)'};
+                                color:${avgColor}; border:2px solid ${avgColor};">
+                        ${avgGrade} — ${avgRemark}
+                    </div>
                 </div>
             </div>
         </div>`;
@@ -2247,4 +2376,152 @@ async function wipeAllBin() {
     } catch (err) {
         alert("❌ " + err.message);
     }
+}
+
+// ── COURSE CATALOG ────────────────────────────────────────────────────
+
+function updateCatalogDepartments() {
+    const facName = document.getElementById('catFaculty')?.value;
+    const deptSel = document.getElementById('catDept');
+    if (!deptSel) return;
+    if (!facName) { deptSel.innerHTML = '<option value="">-- Select Faculty First --</option>'; return; }
+    const facObj = window.allFaculties.find(f => f.name === facName);
+    if (!facObj) return;
+    const filtered = window.allDepartments.filter(d => d.faculty_id === facObj.id);
+    deptSel.innerHTML = '<option value="">-- Select Department --</option>' +
+        filtered.map(d => `<option value="${escapeAttr(d.name)}">${sanitise(d.name)}</option>`).join('');
+}
+
+function updateCatalogFilterDepts() {
+    const facName = document.getElementById('catFilterFaculty')?.value;
+    const deptSel = document.getElementById('catFilterDept');
+    if (!deptSel) return;
+    if (!facName) { deptSel.innerHTML = '<option value="">-- All Departments --</option>'; return; }
+    const facObj = window.allFaculties.find(f => f.name === facName);
+    if (!facObj) return;
+    const filtered = window.allDepartments.filter(d => d.faculty_id === facObj.id);
+    deptSel.innerHTML = '<option value="">-- All Departments --</option>' +
+        filtered.map(d => `<option value="${escapeAttr(d.name)}">${sanitise(d.name)}</option>`).join('');
+    loadCourseCatalog();
+}
+
+async function addCatalogEntry() {
+    const faculty     = document.getElementById('catFaculty')?.value.trim();
+    const dept        = document.getElementById('catDept')?.value.trim();
+    const level       = document.getElementById('catLevel')?.value.trim();
+    const semester    = document.getElementById('catSemester')?.value.trim();
+    const code        = document.getElementById('catCode')?.value.trim().toUpperCase();
+    const title       = document.getElementById('catTitle')?.value.trim();
+    const units       = parseInt(document.getElementById('catUnits')?.value);
+    const msgEl       = document.getElementById('catMsg');
+
+    if (!dept || !level || !semester || !code) {
+        msgEl.style.color = '#ff4444';
+        msgEl.textContent = '⚠️ Department, Level, Semester and Course Code are required.';
+        return;
+    }
+    if (isNaN(units) || units < 1 || units > 6) {
+        msgEl.style.color = '#ff4444';
+        msgEl.textContent = '⚠️ Credit units must be between 1 and 6.';
+        return;
+    }
+
+    const btn = document.getElementById('catAddBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+        const { error } = await sb.from('course_catalog').upsert({
+            course_code: code,
+            course_title: title || null,
+            credit_units: units,
+            department: dept,
+            faculty: faculty || null,
+            level,
+            semester
+        }, { onConflict: 'course_code,department,level,semester' });
+
+        if (error) throw error;
+
+        msgEl.style.color = '#00ff88';
+        msgEl.textContent = `✅ ${code} saved (${units} unit${units > 1 ? 's' : ''}).`;
+        document.getElementById('catCode').value  = '';
+        document.getElementById('catTitle').value = '';
+        document.getElementById('catUnits').value = '3';
+        loadCourseCatalog();
+    } catch (err) {
+        msgEl.style.color = '#ff4444';
+        msgEl.textContent = '❌ ' + err.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '➕ Add / Update';
+    }
+}
+
+async function loadCourseCatalog() {
+    const container = document.getElementById('catList');
+    if (!container) return;
+    container.innerHTML = '<p style="color:gray;">Loading...</p>';
+
+    const faculty  = document.getElementById('catFilterFaculty')?.value || '';
+    const dept     = document.getElementById('catFilterDept')?.value    || '';
+    const level    = document.getElementById('catFilterLevel')?.value   || '';
+    const semester = document.getElementById('catFilterSemester')?.value|| '';
+
+    try {
+        let query = sb.from('course_catalog').select('*').order('course_code');
+        if (dept)     query = query.eq('department', dept);
+        if (level)    query = query.eq('level', level);
+        if (semester) query = query.eq('semester', semester);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="color:gray; padding:16px;">No courses in catalog yet. Add one above.</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <thead>
+                    <tr style="background:#0f5132; color:white; text-align:left;">
+                        <th style="padding:10px;">Code</th>
+                        <th style="padding:10px;">Title</th>
+                        <th style="padding:10px; text-align:center;">Units</th>
+                        <th style="padding:10px;">Department</th>
+                        <th style="padding:10px; text-align:center;">Level</th>
+                        <th style="padding:10px; text-align:center;">Semester</th>
+                        <th style="padding:10px; text-align:center;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.map((c, i) => `
+                    <tr style="background:${i % 2 === 0 ? '#111' : '#0a0a0a'}; border-bottom:1px solid #222;">
+                        <td style="padding:9px; font-weight:bold; color:#00ff88;">${sanitise(c.course_code)}</td>
+                        <td style="padding:9px; color:#ccc;">${sanitise(c.course_title || '—')}</td>
+                        <td style="padding:9px; text-align:center; color:#facc15; font-weight:bold;">${sanitise(String(c.credit_units))}</td>
+                        <td style="padding:9px; color:#aaa;">${sanitise(c.department)}</td>
+                        <td style="padding:9px; text-align:center; color:#aaa;">${sanitise(c.level)}L</td>
+                        <td style="padding:9px; text-align:center; color:#aaa;">${sanitise(c.semester)}</td>
+                        <td style="padding:9px; text-align:center;">
+                            <button class="delete-cat-btn" data-cat-id="${c.id}"
+                                style="background:#ff4444; color:white; border:none; padding:5px 11px; border-radius:4px; cursor:pointer; font-size:0.8rem;">
+                                🗑️ Delete
+                            </button>
+                        </td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+            <p style="color:#666; font-size:0.75rem; margin-top:8px;">${data.length} course(s) shown.</p>`;
+    } catch (err) {
+        container.innerHTML = `<p style="color:red;">Error: ${sanitise(err.message)}</p>`;
+    }
+}
+
+async function deleteCatalogEntry(id) {
+    if (!confirm('Delete this course from the catalog? GPA calculations will fall back to 3 credit units until it is re-added.')) return;
+    const { error } = await sb.from('course_catalog').delete().eq('id', id);
+    if (error) { alert('❌ ' + error.message); return; }
+    loadCourseCatalog();
 }

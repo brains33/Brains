@@ -79,6 +79,7 @@
 
 <a class="nav-link" data-section="markadjust" href="#"><i class="fas fa-pen-fancy"></i><span>Mark Adjust</span></a>
 <a class="nav-link" data-section="recyclebin"><i class="fas fa-recycle"></i><span>Recycle Bin</span></a>
+<a class="nav-link" data-section="catalog"><i class="fas fa-book"></i><span>Course Catalog</span></a>
         <div class="nav-label">ACCOUNT</div>
         <a class="nav-link nav-logout" id="logoutLink"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
     </nav>
@@ -524,6 +525,138 @@
         <p style="color:gray; padding:20px;">Loading recycle bin...</p>
     </div>
 </div>
+    <!-- COURSE CATALOG -->
+    <div id="sec-catalog" class="admin-section">
+        <div class="section-header">
+            <h1>📚 Course Catalog</h1>
+            <p>Set credit units per course — used for GPA/CGPA calculation in student result slips</p>
+        </div>
+
+        <!-- Add / Update form -->
+        <div class="card" style="max-width:720px; margin-bottom:20px;">
+            <h2>➕ Add / Update Course</h2>
+            <p style="opacity:0.75; font-size:0.85rem; margin-bottom:14px;">
+                If the same course code already exists for a department+level+semester combination it will be updated (upserted). Credit units must be 1–6 (NUC/NCCE standard).
+            </p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div>
+                    <label>Faculty</label>
+                    <select id="catFaculty" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box;">
+                        <option value="">-- Select Faculty --</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Department <span style="color:#ff4444;">*</span></label>
+                    <select id="catDept" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box;">
+                        <option value="">-- Select Faculty First --</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Level <span style="color:#ff4444;">*</span></label>
+                    <select id="catLevel" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box;">
+                        <option value="">-- Choose Level --</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                        <option value="300">300</option>
+                        <option value="400">400</option>
+                        <option value="500">500</option>
+                        <option value="600">600</option>
+                        <option value="700">700</option>
+                        <option value="800">800</option>
+                        <option value="900">900</option>
+                        <option value="1000">1000</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Semester <span style="color:#ff4444;">*</span></label>
+                    <select id="catSemester" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box;">
+                        <option value="">-- Choose Semester --</option>
+                        <option value="1st">1st Semester</option>
+                        <option value="2nd">2nd Semester</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Course Code <span style="color:#ff4444;">*</span></label>
+                    <input type="text" id="catCode" placeholder="e.g. MLT201, BIO101"
+                           style="width:100%; background:#111; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box; text-transform:uppercase;">
+                </div>
+                <div>
+                    <label>Course Title (optional)</label>
+                    <input type="text" id="catTitle" placeholder="e.g. Medical Microbiology"
+                           style="width:100%; background:#111; color:white; border:1px solid #444; padding:9px; border-radius:6px; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label>Credit Units <span style="color:#ff4444;">*</span></label>
+                    <input type="number" id="catUnits" value="3" min="1" max="6"
+                           style="width:100%; background:#111; color:#facc15; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box; font-weight:bold; font-size:1.05rem;">
+                    <small style="color:#666;">Standard: 1–4 units. Practicals/projects: up to 6.</small>
+                </div>
+            </div>
+            <div style="margin-top:16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                <button id="catAddBtn"
+                        style="background:#00ff88; color:#022c16; border:none; padding:11px 28px; border-radius:7px; font-weight:bold; font-size:0.95rem; cursor:pointer;">
+                    ➕ Add / Update
+                </button>
+                <span id="catMsg" style="font-size:0.9rem;"></span>
+            </div>
+        </div>
+
+        <!-- Filter + List -->
+        <div class="card">
+            <h2>📋 Catalog Entries</h2>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:18px; background:#0a1f0f; padding:14px; border-radius:8px; border:1px solid #1a3a1f;">
+                <div>
+                    <label style="color:#aaa; font-size:0.8rem;">Faculty</label>
+                    <select id="catFilterFaculty" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:8px; border-radius:6px;">
+                        <option value="">-- All Faculties --</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:#aaa; font-size:0.8rem;">Department</label>
+                    <select id="catFilterDept" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:8px; border-radius:6px;">
+                        <option value="">-- All Departments --</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:#aaa; font-size:0.8rem;">Level</label>
+                    <select id="catFilterLevel" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:8px; border-radius:6px;">
+                        <option value="">-- All Levels --</option>
+                        <option value="100">100L</option>
+                        <option value="200">200L</option>
+                        <option value="300">300L</option>
+                        <option value="400">400L</option>
+                        <option value="500">500L</option>
+                        <option value="600">600L</option>
+                        <option value="700">700L</option>
+                        <option value="800">800L</option>
+                        <option value="900">900L</option>
+                        <option value="1000">1000L</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:#aaa; font-size:0.8rem;">Semester</label>
+                    <select id="catFilterSemester" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:8px; border-radius:6px;">
+                        <option value="">-- All Semesters --</option>
+                        <option value="1st">1st Semester</option>
+                        <option value="2nd">2nd Semester</option>
+                    </select>
+                </div>
+            </div>
+            <div id="catList">
+                <p style="color:gray; padding:20px;">Navigate to this section to load the catalog.</p>
+            </div>
+        </div>
+
+        <!-- Info box -->
+        <div style="margin-top:18px; padding:12px 16px; background:#1a1a1a; border-left:4px solid #facc15; border-radius:6px; font-size:0.82rem; color:#aaa;">
+            <strong style="color:#facc15;">How GPA is calculated:</strong>
+            Quality Points (QP) = Grade Point × Credit Units per course.
+            GPA = Total QP ÷ Total Credit Units for the semester.
+            Grade points: A=5, B=4, C=3, D=2, F=0.
+            If a course is not in the catalog, it defaults to <strong style="color:white;">3 credit units</strong> — students will see a warning on their result slip.
+        </div>
+    </div>
+
 </div><!-- end admin-main -->
 
 <!-- Chart.js loaded here (after body) so CSP and DOM are both ready -->

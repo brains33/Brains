@@ -94,6 +94,7 @@ function initSidebar() {
 
             // Lazy load data when tab is first opened
             if (page === 'bursary') loadBursarStaff();
+            if (page === 'cagatekeeper') initCaGatekeeperPage();
             if (page === 'paperscores') initPaperScoresPage();
             if (page === 'assignments') loadAssignments();
             if (page === 'examcard') initExamCardPage();
@@ -955,6 +956,242 @@ async function releaseExamSchedule() {
 let _psStudents = [];   // { matrix_no, name, currentScore }
 let _psCurrentFilters = { faculty: '', dept: '', level: '', semester: '', course: '' };
 
+let _caInitDone = false;
+
+function initCaGatekeeperPage() {
+    if (_caInitDone) return;
+    _caInitDone = true;
+
+    const LEVELS = ['100','200','300','400','500','600','700','800','900','1000'];
+
+    // Populate faculty dropdown
+    const caFacEl = document.getElementById('caFaculty');
+    if (caFacEl) {
+        caFacEl.innerHTML = '<option value="">-- Select Faculty --</option>' +
+            allFaculties.map(f => `<option value="${sanitise(f.name)}">${sanitise(f.name)}</option>`).join('');
+        caFacEl.addEventListener('change', updateCaDepartments);
+    }
+
+    const caLvlEl = document.getElementById('caLevel');
+    if (caLvlEl) {
+        caLvlEl.innerHTML = '<option value="">-- Choose Level --</option>' +
+            LEVELS.map(l => `<option value="${l}">${l}</option>`).join('');
+    }
+}
+
+function updateCaDepartments() {
+    const facName  = document.getElementById('caFaculty').value;
+    const deptEl   = document.getElementById('caDept');
+    if (!facName) { deptEl.innerHTML = '<option value="">-- Select Faculty First --</option>'; return; }
+    const facObj   = allFaculties.find(f => f.name === facName);
+    if (!facObj) return;
+    const filtered = allDepartments.filter(d => d.faculty_id === facObj.id);
+    deptEl.innerHTML = filtered.length
+        ? '<option value="">-- Select Department --</option>' + filtered.map(d => `<option value="${sanitise(d.name)}">${sanitise(d.name)}</option>`).join('')
+        : '<option value="">No Departments Found</option>';
+}
+
+async function createCaSession() {
+    const faculty  = document.getElementById('caFaculty').value;
+    const dept     = document.getElementById('caDept').value;
+    const level    = document.getElementById('caLevel').value;
+    const semester = document.getElementById('caSemester').value;
+    const course   = document.getElementById('caCourse').value.trim().toUpperCase();
+
+    if (!faculty || !dept || !level || !semester) return alert('⚠️ Please select Faculty, Department, Level and Semester.');
+    if (!course) return alert('⚠️ Please enter a Course Code before generating a token.');
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+        .map(b => chars[b % chars.length]).join('');
+    const endTime = new Date();
+    endTime.setMinutes(endTime.getMinutes() + 60);
+
+    try {
+        // Upsert: find existing CA session for this dept+course
+        const { data: existing } = await sb.from('exam_sessions')
+            .select('id')
+            .eq('is_ca', true)
+            .eq('department', dept)
+            .eq('course', course)
+            .maybeSingle();
+
+        let error;
+        if (existing) {
+            ({ error } = await sb.from('exam_sessions')
+                .update({
+                    token_code: token,
+                    is_active:  'false',
+                    faculty,
+                    level,
+                    semester,
+                    end_time:   endTime.toISOString()
+                })
+                .eq('id', existing.id));
+        } else {
+            ({ error } = await sb.from('exam_sessions')
+                .insert({
+                    faculty,
+                    department: dept,
+                    level,
+                    semester,
+                    course,
+                    token_code: token,
+                    is_active:  'false',
+                    is_ca:      true,
+                    is_carryover: false,
+                    end_time:   endTime.toISOString()
+                }));
+        }
+
+        if (error) throw error;
+
+        document.getElementById('caActiveToken').textContent  = token;
+        document.getElementById('caActiveCourse').textContent = course;
+        document.getElementById('caGateStatus').textContent   = 'CA GATE: CLOSED';
+        document.getElementById('caGateStatus').style.color   = '#ff4444';
+        document.getElementById('caToggleGateBtn').textContent  = '🔓 Open Gate';
+        document.getElementById('caToggleGateBtn').style.background = 'var(--green)';
+        document.getElementById('caToggleGateBtn').style.color = '#0f5132';
+        alert(`✅ CA Token ${token} created for ${course} | ${dept} | ${level}L | ${semester} Semester`);
+    } catch (err) {
+        alert('❌ ' + safeErr(err));
+    }
+}
+
+async function toggleCaGate() {
+    const dept   = document.getElementById('caDept').value;
+    const course = document.getElementById('caCourse').value.trim().toUpperCase();
+    if (!dept || !course) return alert('⚠️ Please select Department and enter Course code.');
+
+    const statusSpan = document.getElementById('caGateStatus');
+    const btn        = document.getElementById('caToggleGateBtn');
+    const isOpening  = statusSpan.textContent.includes('CLOSED');
+
+    const { error } = await sb.from('exam_sessions')
+        .update({ is_active: isOpening ? 'true' : 'false' })
+        .eq('is_ca', true)
+        .eq('department', dept)
+        .eq('course', course);
+
+    if (!error) {
+        statusSpan.textContent        = isOpening ? 'CA GATE: OPEN' : 'CA GATE: CLOSED';
+        statusSpan.style.color        = isOpening ? 'var(--green)' : '#ff4444';
+        btn.textContent               = isOpening ? '🔒 Close Gate' : '🔓 Open Gate';
+        btn.style.background          = isOpening ? '#ff4444' : 'var(--green)';
+        btn.style.color               = isOpening ? 'white' : '#0f5132';
+    } else {
+        alert('Gate toggle error: ' + safeErr(error));
+    }
+}
+
+let _caTimerInterval = null;
+
+async function startCaExam() {
+    const dept   = document.getElementById('caDept').value;
+    const course = document.getElementById('caCourse').value.trim().toUpperCase();
+    const mins   = parseInt(document.getElementById('caDuration').value);
+    const token  = document.getElementById('caActiveToken').textContent;
+
+    if (!dept || !course || token === '----' || isNaN(mins) || mins <= 0) {
+        return alert('⚠️ Generate a token, select department/course, and enter a valid duration.');
+    }
+
+    const endTime = new Date(Date.now() + mins * 60000).toISOString();
+    const { error } = await sb.from('exam_sessions')
+        .update({ is_active: 'true', end_time: endTime })
+        .eq('is_ca', true)
+        .eq('department', dept)
+        .eq('course', course);
+
+    if (error) { alert('DB error: ' + safeErr(error)); return; }
+
+    document.getElementById('caGateStatus').textContent        = 'CA GATE: OPEN';
+    document.getElementById('caGateStatus').style.color        = 'var(--green)';
+    document.getElementById('caToggleGateBtn').textContent     = '🔒 Close Gate';
+    document.getElementById('caToggleGateBtn').style.background = '#ff4444';
+    document.getElementById('caToggleGateBtn').style.color     = 'white';
+
+    alert(`✅ CA started for ${course} | ${dept}!`);
+    runCaTimer(mins * 60, dept, course);
+}
+
+function runCaTimer(totalSeconds, dept, course) {
+    clearInterval(_caTimerInterval);
+    const display = document.getElementById('caTimerDisplay');
+    _caTimerInterval = setInterval(async () => {
+        if (totalSeconds <= 0) {
+            clearInterval(_caTimerInterval);
+            if (display) display.textContent = '00:00';
+            await autoCloseCaGate(dept, course);
+            return;
+        }
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        if (display) display.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        totalSeconds--;
+    }, 1000);
+}
+
+async function autoCloseCaGate(dept, course) {
+    await sb.from('exam_sessions')
+        .update({ is_active: 'false' })
+        .eq('is_ca', true)
+        .eq('department', dept)
+        .eq('course', course);
+
+    document.getElementById('caGateStatus').textContent        = 'CA GATE: CLOSED (EXPIRED)';
+    document.getElementById('caGateStatus').style.color        = '#ff4444';
+    document.getElementById('caActiveToken').textContent       = '----';
+    document.getElementById('caActiveCourse').textContent      = '---';
+    document.getElementById('caToggleGateBtn').textContent     = '🔓 Open Gate';
+    document.getElementById('caToggleGateBtn').style.background = 'var(--green)';
+    document.getElementById('caToggleGateBtn').style.color     = '#0f5132';
+}
+
+async function forceLogoutCa() {
+    const dept   = document.getElementById('caDept').value;
+    const course = document.getElementById('caCourse').value.trim().toUpperCase();
+    if (!dept || !course) return alert('⚠️ Please select Department and enter Course code.');
+
+    if (!confirm(`🚨 Force logout ALL students currently in CA "${course}" for ${dept}?\n\nTheir answers will be lost and the gate will be closed.`)) return;
+
+    // Get students currently active in this CA course
+    const { data: liveRows, error: liveErr } = await sb.from('live_monitoring')
+        .select('matrix_no')
+        .eq('current_subject', course)
+        .eq('status', 'ACTIVE');
+
+    if (liveErr) return alert('❌ Error fetching live students: ' + safeErr(liveErr));
+    if (!liveRows || liveRows.length === 0) {
+        return alert('No active students currently in that CA exam.');
+    }
+
+    const matrixNos = liveRows.map(s => s.matrix_no);
+
+    const { error: kickErr } = await sb.from('live_monitoring')
+        .update({ status: 'KICKED' })
+        .in('matrix_no', matrixNos);
+    if (kickErr) return alert('❌ Kick error: ' + safeErr(kickErr));
+
+    const { error: gateErr } = await sb.from('exam_sessions')
+        .update({ is_active: 'false' })
+        .eq('is_ca', true)
+        .eq('department', dept)
+        .eq('course', course);
+    if (gateErr) return alert('❌ Gate close error: ' + safeErr(gateErr));
+
+    clearInterval(_caTimerInterval);
+    document.getElementById('caTimerDisplay').textContent      = '00:00';
+    document.getElementById('caGateStatus').textContent        = 'CA GATE: CLOSED';
+    document.getElementById('caGateStatus').style.color        = '#ff4444';
+    document.getElementById('caToggleGateBtn').textContent     = '🔓 Open Gate';
+    document.getElementById('caToggleGateBtn').style.background = 'var(--green)';
+    document.getElementById('caToggleGateBtn').style.color     = '#0f5132';
+
+    alert(`✅ ${matrixNos.length} student(s) kicked. CA gate closed for ${course} | ${dept}.`);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════════════════
@@ -964,6 +1201,12 @@ document.addEventListener('DOMContentLoaded', () => {
     initSidebar();
     initUploadPage();
     loadAssignments();
+
+    // ── CA Gatekeeper ──
+    document.getElementById('caGenerateTokenBtn')?.addEventListener('click', createCaSession);
+    document.getElementById('caToggleGateBtn')?.addEventListener('click', toggleCaGate);
+    document.getElementById('caStartExamBtn')?.addEventListener('click', startCaExam);
+    document.getElementById('caForceLogoutBtn')?.addEventListener('click', forceLogoutCa);
 
     // ── Question upload ──
     document.getElementById('faculty')?.addEventListener('change', updateDepts);
@@ -1111,22 +1354,27 @@ async function loadStudentsForPaperScores() {
             return;
         }
 
-        // 2. Fetch existing scores for this course
+        // 2. Fetch existing exam scores and CA scores for this course
         const matrixList = students.map(s => s.matrix_no);
         const { data: scores, error: scoreErr } = await sb
             .from('results')
-            .select('matrix_no, score')
+            .select('matrix_no, score, is_ca')
             .in('matrix_no', matrixList)
             .eq('subject', course);
         if (scoreErr) throw scoreErr;
 
-        const scoreMap = {};
-        scores.forEach(s => { scoreMap[s.matrix_no] = s.score; });
+        const examScoreMap = {};
+        const caScoreMap   = {};
+        scores.forEach(s => {
+            if (s.is_ca) caScoreMap[s.matrix_no]   = s.score;
+            else          examScoreMap[s.matrix_no] = s.score;
+        });
 
         _psStudents = students.map(s => ({
-            matrix_no: s.matrix_no,
-            name: s.name,
-            currentScore: scoreMap[s.matrix_no] !== undefined ? scoreMap[s.matrix_no] : ''
+            matrix_no:    s.matrix_no,
+            name:         s.name,
+            currentScore: examScoreMap[s.matrix_no] !== undefined ? examScoreMap[s.matrix_no] : '',
+            caScore:      caScoreMap[s.matrix_no]   !== undefined ? caScoreMap[s.matrix_no]   : ''
         }));
 
         renderPsScoreTable();
@@ -1139,6 +1387,15 @@ async function loadStudentsForPaperScores() {
     }
 }
 
+// ── GRADING HELPER ────────────────────────────────────────────────────
+function computeGrade(total) {
+    if (total >= 70) return { grade: 'A', remark: 'Excellent',  color: '#00ff88' };
+    if (total >= 60) return { grade: 'B', remark: 'Very Good',  color: '#4ade80' };
+    if (total >= 50) return { grade: 'C', remark: 'Good',       color: '#facc15' };
+    if (total >= 40) return { grade: 'D', remark: 'Pass',       color: '#fb923c' };
+    return            { grade: 'F', remark: 'Fail',       color: '#ff4444' };
+}
+
 function renderPsScoreTable() {
     const container = document.getElementById('psScoresTable');
     if (!_psStudents.length) {
@@ -1147,30 +1404,52 @@ function renderPsScoreTable() {
     }
 
     const html = `
-        <table style="width:100%; border-collapse: collapse;">
+        <table style="width:100%; border-collapse:collapse;">
             <thead>
-                <tr>
-                    <th style="padding:10px; text-align:left;">Matrix No</th>
-                    <th style="padding:10px; text-align:left;">Student Name</th>
-                    <th style="padding:10px; text-align:center;">Score (0-100)</th>
+                <tr style="color:#00ff88; border-bottom:1px solid #444; text-align:left;">
+                    <th style="padding:10px;">Matrix No</th>
+                    <th style="padding:10px;">Student Name</th>
+                    <th style="padding:10px; text-align:center;">CA Score (raw/100)</th>
+                    <th style="padding:10px; text-align:center;">Exam Score (0–100)</th>
+                    <th style="padding:10px; text-align:center;">CA (30)</th>
+                    <th style="padding:10px; text-align:center;">Exam (70)</th>
+                    <th style="padding:10px; text-align:center;">Total (100)</th>
+                    <th style="padding:10px; text-align:center;">Grade</th>
+                    <th style="padding:10px; text-align:center;">Remark</th>
                 </tr>
             </thead>
             <tbody>
-                ${_psStudents.map(s => `
+                ${_psStudents.map(s => {
+                    const examRaw = s.currentScore !== '' ? parseFloat(s.currentScore) : null;
+                    // CA score comes from s.caScore if fetched, else null
+                    const caRaw   = s.caScore   !== undefined && s.caScore   !== '' ? parseFloat(s.caScore)   : null;
+                    const caWeighted   = caRaw   !== null ? Math.min(30, Math.round(caRaw   * 0.30)) : null;
+                    const examWeighted = examRaw !== null ? Math.min(70, Math.round(examRaw * 0.70)) : null;
+                    const total = (caWeighted !== null || examWeighted !== null)
+                        ? Math.min(100, (caWeighted ?? 0) + (examWeighted ?? 0))
+                        : null;
+                    const { grade, remark, color } = total !== null ? computeGrade(total) : { grade: '—', remark: '—', color: '#555' };
+                    return `
                     <tr style="border-bottom:1px solid var(--border);">
                         <td style="padding:8px;">${sanitise(s.matrix_no)}</td>
                         <td style="padding:8px;">${sanitise(s.name)}</td>
+                        <td style="padding:8px; text-align:center; color:#4ade80;">${caRaw !== null ? caRaw : '—'}</td>
                         <td style="padding:8px; text-align:center;">
                             <input type="number" class="ps-score-input" data-matrix="${sanitise(s.matrix_no)}"
-                                   value="${s.currentScore !== '' ? s.currentScore : ''}"
+                                   value="${examRaw !== null ? examRaw : ''}"
                                    min="0" max="100" step="1"
-                                   style="width:80px; padding:6px; border-radius:6px; background:#0a1a10; border:1px solid var(--border); color:white; text-align:center;">
+                                   style="width:72px; padding:6px; border-radius:6px; background:#0a1a10; border:1px solid var(--border); color:white; text-align:center;">
                         </td>
-                    </tr>
-                `).join('')}
+                        <td style="padding:8px; text-align:center; color:#4ade80;">${caWeighted !== null ? caWeighted : '—'}</td>
+                        <td style="padding:8px; text-align:center; color:#00ff88;">${examWeighted !== null ? examWeighted : '—'}</td>
+                        <td style="padding:8px; text-align:center; font-weight:bold; color:${color};">${total !== null ? total : '—'}</td>
+                        <td style="padding:8px; text-align:center; font-weight:bold; color:${color};">${grade}</td>
+                        <td style="padding:8px; text-align:center; font-size:0.8rem; color:${color};">${remark}</td>
+                    </tr>`;
+                }).join('')}
             </tbody>
         </table>
-        <div style="margin-top:8px; font-size:0.75rem; color:var(--muted);">Enter scores 0‑100. Empty means no score (will not overwrite existing).</div>
+        <div style="margin-top:8px; font-size:0.75rem; color:var(--muted);">Enter exam scores 0–100. CA column is read-only (loaded from CA exam results). Total is capped at 100.</div>
     `;
     container.innerHTML = html;
 }
