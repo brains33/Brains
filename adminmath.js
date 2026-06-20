@@ -1395,55 +1395,72 @@ function renderPsScoreTable() {
         return;
     }
 
-    const html = `
-        <table style="width:100%; border-collapse:collapse;">
+    const mkInp = (cls, idx, val, max, color) =>
+        `<input type="number" class="${cls}" data-idx="${idx}"
+                value="${val !== null && val !== '' ? val : ''}"
+                min="0" max="${max}" step="0.5"
+                oninput="recalcPsRow(${idx})"
+                style="width:56px;padding:5px 3px;border-radius:6px;background:#0a1a10;
+                       border:1px solid ${color}44;color:${color};text-align:center;font-size:0.85rem;">`;
+
+    const rows = _psStudents.map((s, idx) => {
+        const ca  = s.caScore      !== undefined && s.caScore      !== '' ? parseFloat(s.caScore)      : null;
+        const ex  = s.currentScore !== undefined && s.currentScore !== '' ? parseFloat(s.currentScore) : null;
+        const tot = (ca !== null || ex !== null) ? Math.min(100, (ca ?? 0) + (ex ?? 0)) : null;
+        const { grade, remark, color } = tot !== null ? computeGrade(tot) : { grade: '—', remark: '—', color: '#555' };
+        return `
+        <tr style="border-bottom:1px solid #1a2a1a;">
+            <td style="padding:8px;font-size:0.82rem;white-space:nowrap;">${sanitise(s.matrix_no)}</td>
+            <td style="padding:8px;font-size:0.82rem;white-space:nowrap;">${sanitise(s.name)}</td>
+            <td style="padding:6px 4px;text-align:center;">${mkInp('ps-ca-input',   idx, ca, 30, '#4ade80')}</td>
+            <td style="padding:6px 4px;text-align:center;">${mkInp('ps-exam-input', idx, ex, 70, '#00ff88')}</td>
+            <td class="ps-total-${idx}"  style="padding:8px 4px;text-align:center;font-weight:bold;color:${color};">${tot !== null ? tot : '—'}</td>
+            <td class="ps-grade-${idx}"  style="padding:8px 4px;text-align:center;font-weight:bold;color:${color};">${grade}</td>
+            <td class="ps-remark-${idx}" style="padding:8px 4px;text-align:center;font-size:0.78rem;color:${color};white-space:nowrap;">${remark}</td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:540px;">
             <thead>
-                <tr style="color:#00ff88; border-bottom:1px solid #444; text-align:left;">
-                    <th style="padding:10px;">Matrix No</th>
-                    <th style="padding:10px;">Student Name</th>
-                    <th style="padding:10px; text-align:center;">CA Score (raw/100)</th>
-                    <th style="padding:10px; text-align:center;">Exam Score (0–100)</th>
-                    <th style="padding:10px; text-align:center;">CA (30)</th>
-                    <th style="padding:10px; text-align:center;">Exam (70)</th>
-                    <th style="padding:10px; text-align:center;">Total (100)</th>
-                    <th style="padding:10px; text-align:center;">Grade</th>
-                    <th style="padding:10px; text-align:center;">Remark</th>
+                <tr style="color:#00ff88;border-bottom:2px solid #2a4a2a;font-size:0.8rem;text-align:center;">
+                    <th style="padding:10px 8px;text-align:left;">Matrix No</th>
+                    <th style="padding:10px 8px;text-align:left;">Name</th>
+                    <th style="padding:10px 4px;">CA<br><span style="color:#4ade80;font-size:0.7rem;">/30</span></th>
+                    <th style="padding:10px 4px;">Exam<br><span style="color:#00ff88;font-size:0.7rem;">/70</span></th>
+                    <th style="padding:10px 4px;">Total<br><span style="font-size:0.7rem;color:var(--muted);">/100</span></th>
+                    <th style="padding:10px 4px;">Grade</th>
+                    <th style="padding:10px 4px;">Remark</th>
                 </tr>
             </thead>
-            <tbody>
-                ${_psStudents.map(s => {
-                    const examRaw = s.currentScore !== '' ? parseFloat(s.currentScore) : null;
-                    // CA score comes from s.caScore if fetched, else null
-                    const caRaw   = s.caScore   !== undefined && s.caScore   !== '' ? parseFloat(s.caScore)   : null;
-                    const caWeighted   = caRaw   !== null ? Math.min(30, Math.round(caRaw   * 0.30)) : null;
-                    const examWeighted = examRaw !== null ? Math.min(70, Math.round(examRaw * 0.70)) : null;
-                    const total = (caWeighted !== null || examWeighted !== null)
-                        ? Math.min(100, (caWeighted ?? 0) + (examWeighted ?? 0))
-                        : null;
-                    const { grade, remark, color } = total !== null ? computeGrade(total) : { grade: '—', remark: '—', color: '#555' };
-                    return `
-                    <tr style="border-bottom:1px solid var(--border);">
-                        <td style="padding:8px;">${sanitise(s.matrix_no)}</td>
-                        <td style="padding:8px;">${sanitise(s.name)}</td>
-                        <td style="padding:8px; text-align:center; color:#4ade80;">${caRaw !== null ? caRaw : '—'}</td>
-                        <td style="padding:8px; text-align:center;">
-                            <input type="number" class="ps-score-input" data-matrix="${sanitise(s.matrix_no)}"
-                                   value="${examRaw !== null ? examRaw : ''}"
-                                   min="0" max="100" step="1"
-                                   style="width:72px; padding:6px; border-radius:6px; background:#0a1a10; border:1px solid var(--border); color:white; text-align:center;">
-                        </td>
-                        <td style="padding:8px; text-align:center; color:#4ade80;">${caWeighted !== null ? caWeighted : '—'}</td>
-                        <td style="padding:8px; text-align:center; color:#00ff88;">${examWeighted !== null ? examWeighted : '—'}</td>
-                        <td style="padding:8px; text-align:center; font-weight:bold; color:${color};">${total !== null ? total : '—'}</td>
-                        <td style="padding:8px; text-align:center; font-weight:bold; color:${color};">${grade}</td>
-                        <td style="padding:8px; text-align:center; font-size:0.8rem; color:${color};">${remark}</td>
-                    </tr>`;
-                }).join('')}
-            </tbody>
+            <tbody>${rows}</tbody>
         </table>
-        <div style="margin-top:8px; font-size:0.75rem; color:var(--muted);">Enter exam scores 0–100. CA column is read-only (loaded from CA exam results). Total is capped at 100.</div>
-    `;
-    container.innerHTML = html;
+        </div>
+        <p style="margin-top:8px;font-size:0.72rem;color:var(--muted);">
+            CA 0–30 · Exam 0–70 · Total = CA + Exam · Grade updates live as you type.
+        </p>`;
+}
+
+function recalcPsRow(idx) {
+    const caEl = document.querySelector('.ps-ca-input[data-idx="' + idx + '"]');
+    const exEl = document.querySelector('.ps-exam-input[data-idx="' + idx + '"]');
+    if (!caEl || !exEl) return;
+
+    const ca  = caEl.value.trim() !== '' ? Math.min(30, Math.max(0, parseFloat(caEl.value))) : null;
+    const ex  = exEl.value.trim() !== '' ? Math.min(70, Math.max(0, parseFloat(exEl.value))) : null;
+    const tot = (ca !== null || ex !== null) ? Math.min(100, (ca ?? 0) + (ex ?? 0)) : null;
+    const { grade, remark, color } = tot !== null ? computeGrade(tot) : { grade: '—', remark: '—', color: '#555' };
+
+    const set = (sel, val, c) => { const el = document.querySelector(sel); if (el) { el.textContent = val; el.style.color = c; } };
+    set('.ps-total-'  + idx, tot !== null ? tot : '—', color);
+    set('.ps-grade-'  + idx, grade,  color);
+    set('.ps-remark-' + idx, remark, color);
+
+    if (_psStudents[idx]) {
+        _psStudents[idx].caScore      = ca !== null ? ca : '';
+        _psStudents[idx].currentScore = ex !== null ? ex : '';
+    }
 }
 
 async function savePaperScores() {
@@ -1460,33 +1477,33 @@ async function savePaperScores() {
         return;
     }
 
-    const inputs = document.querySelectorAll('.ps-score-input');
     const updates = [];
 
-    for (const inp of inputs) {
-        const matrix = inp.getAttribute('data-matrix');
-        let scoreVal = inp.value.trim();
-        if (scoreVal === '') continue;
-        let score = Number(scoreVal);
-        if (isNaN(score)) continue;
-        score = Math.min(100, Math.max(0, score));
+    // CA scores (0-30 direct)
+    document.querySelectorAll('.ps-ca-input').forEach(inp => {
+        const idx = parseInt(inp.getAttribute('data-idx'));
+        const s = _psStudents[idx];
+        if (!s) return;
+        const v = inp.value.trim();
+        if (v === '') return;
+        const score = Math.min(30, Math.max(0, parseFloat(v)));
+        if (isNaN(score)) return;
+        updates.push({ matrix_no: s.matrix_no, name: s.name, subject: course, course, score,
+                       is_ca: true, department: dept, level, semester, faculty });
+    });
 
-        // Find the student's name from the loaded list
-        const student = _psStudents.find(s => s.matrix_no === matrix);
-        if (!student) continue;
-
-        updates.push({
-            matrix_no: matrix,
-            name: student.name,          // ✅ required NOT NULL
-            subject: course,             // ✅ subject = course name
-            course: course,              // ✅ if your table has a separate 'course' column
-            score: score,
-            department: dept,
-            level: level,
-            semester: semester,
-            faculty: faculty,            // optional but safe
-        });
-    }
+    // Exam scores (0-70 direct)
+    document.querySelectorAll('.ps-exam-input').forEach(inp => {
+        const idx = parseInt(inp.getAttribute('data-idx'));
+        const s = _psStudents[idx];
+        if (!s) return;
+        const v = inp.value.trim();
+        if (v === '') return;
+        const score = Math.min(70, Math.max(0, parseFloat(v)));
+        if (isNaN(score)) return;
+        updates.push({ matrix_no: s.matrix_no, name: s.name, subject: course, course, score,
+                       is_ca: false, department: dept, level, semester, faculty });
+    });
 
     if (updates.length === 0) {
         msgDiv.className = 'msg error';
@@ -1502,7 +1519,7 @@ async function savePaperScores() {
         for (const rec of updates) {
             const { error } = await sb
                 .from('results')
-                .upsert(rec, { onConflict: 'matrix_no, subject' });
+                .upsert(rec, { onConflict: 'matrix_no, subject, is_ca' });
             if (error) throw error;
         }
         msgDiv.className = 'msg success';
@@ -1522,11 +1539,13 @@ async function savePaperScores() {
 function bulkSetScores() {
     const bulkVal = document.getElementById('psBulkValue').value;
     if (bulkVal === '') return;
-    let score = Number(bulkVal);
-    if (isNaN(score)) return;
-    score = Math.min(100, Math.max(0, score));
-    const inputs = document.querySelectorAll('.ps-score-input');
-    inputs.forEach(inp => { inp.value = score; });
+    const raw = parseFloat(bulkVal);
+    if (isNaN(raw)) return;
+    // Bulk-fill exam inputs only (Exam /70)
+    document.querySelectorAll('.ps-exam-input').forEach((inp, i) => {
+        inp.value = Math.min(70, Math.max(0, raw));
+        recalcPsRow(parseInt(inp.getAttribute('data-idx')));
+    });
 }
 
 async function setPaperResultsRelease(released) {

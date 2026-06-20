@@ -276,7 +276,8 @@ document.getElementById('ma-applyBtn')?.addEventListener('click', applyMarkAdjus
             const id = saveBtn.getAttribute('data-result-id');
             const input = document.querySelector(`#adminResultsGrid .score-input[data-result-id="${id}"]`);
             const newScore = parseInt(input?.value);
-            if (!isNaN(newScore)) saveAdjustedScore(id, newScore);
+            const max = parseInt(input?.getAttribute('data-max')) || 100;
+            if (!isNaN(newScore)) saveAdjustedScore(id, newScore, max);
         }
     });
 
@@ -293,7 +294,8 @@ document.getElementById('ma-applyBtn')?.addEventListener('click', applyMarkAdjus
             const id = saveBtn.getAttribute('data-result-id');
             const input = document.querySelector(`#masterRecordsGrid .score-input[data-result-id="${id}"]`);
             const newScore = parseInt(input?.value);
-            if (!isNaN(newScore)) saveAdjustedScore(id, newScore);
+            const max = parseInt(input?.getAttribute('data-max')) || 100;
+            if (!isNaN(newScore)) saveAdjustedScore(id, newScore, max);
         }
     });
 }
@@ -429,14 +431,15 @@ const newToken = Array.from(crypto.getRandomValues(new Uint8Array(6)))
     const endTime  = new Date(); endTime.setMinutes(endTime.getMinutes() + 60);
 
     try {
-        // Find existing session matching ALL four identifying columns
+        // Find existing session matching ALL identifying columns — exclude CA and carryover
         const { data: existing } = await sb.from('exam_sessions')
             .select('id')
-            .eq('department', dept)
-            .eq('level',      level)
-            .eq('semester',   semester)
-            .eq('course',     course)
+            .eq('department',   dept)
+            .eq('level',        level)
+            .eq('semester',     semester)
+            .eq('course',       course)
             .eq('is_carryover', false)
+            .eq('is_ca',        false)
             .maybeSingle();
 
         let error;
@@ -460,6 +463,7 @@ const newToken = Array.from(crypto.getRandomValues(new Uint8Array(6)))
                     semester,
                     course,
                     is_carryover: false,
+                    is_ca:        false,
                     token_code:   newToken,
                     is_active:    "false",
                     end_time:     endTime.toISOString()
@@ -493,7 +497,8 @@ async function toggleGate() {
         .eq('level', level)
         .eq('semester', semester)
         .eq('course', course)
-        .eq('is_carryover', false);
+        .eq('is_carryover', false)
+        .eq('is_ca', false);
 
     if (!error) {
         statusText.textContent   = isOpening ? "EXAM GATE: OPEN" : "EXAM GATE: CLOSED";
@@ -568,7 +573,8 @@ async function forceLogoutAll() {
             .eq('level', level)
             .eq('semester', semester)
             .eq('course', course)
-            .eq('is_carryover', false);
+            .eq('is_carryover', false)
+            .eq('is_ca', false);
 
         if (gateErr) throw gateErr;
 
@@ -608,7 +614,8 @@ async function startExam() {
         .eq('level', level)
         .eq('semester', semester)
         .eq('course', course)
-        .eq('is_carryover', false);
+        .eq('is_carryover', false)
+        .eq('is_ca', false);
     if (error) { alert("DB Error: " + error.message); return; }
     document.getElementById('gateStatus').textContent = "EXAM GATE: OPEN";
     document.getElementById('gateStatus').style.color = "#00ff88";
@@ -640,7 +647,8 @@ async function autoCloseGate(dept, level, semester, course) {
         .eq('level', level)
         .eq('semester', semester)
         .eq('course', course)
-        .eq('is_carryover', false);
+        .eq('is_carryover', false)
+        .eq('is_ca', false);
 
     document.getElementById('gateStatus').textContent = "EXAM GATE: CLOSED (EXPIRED)";
     document.getElementById('gateStatus').style.color = "#ff4444";
@@ -1184,9 +1192,9 @@ async function deleteResult(id, context) {
 function safeValue(val) { return sanitise(val); }
 
 // ── INLINE SCORE ADJUSTMENT ──────────────────────────────────────────
-async function saveAdjustedScore(resultId, newScore) {
-    if (newScore < 0 || newScore > 100) return alert("Score must be between 0 and 100.");
-    if (!confirm(`Update this score to ${newScore}%?`)) return;
+async function saveAdjustedScore(resultId, newScore, max = 100) {
+    if (newScore < 0 || newScore > max) return alert(`Score must be between 0 and ${max}.`);
+    if (!confirm(`Update this score to ${newScore}?`)) return;
     const { error } = await sb.from('results').update({ score: newScore }).eq('id', resultId);
     if (error) return alert("❌ Failed to update score: " + error.message);
     alert("✅ Score updated successfully!");
@@ -1224,8 +1232,9 @@ function renderResultsUI() {
             const rows = students.map(s => {
                 const caRaw   = s.ca   ? parseFloat(s.ca.score)   : null;
                 const examRaw = s.exam ? parseFloat(s.exam.score) : null;
-                const caScore   = caRaw   !== null ? Math.min(30, Math.round(caRaw   * 0.30)) : null;
-                const examScore = examRaw !== null ? Math.min(70, Math.round(examRaw * 0.70)) : null;
+                // CA and Exam scores are stored as direct /30 and /70 values (no weighting needed)
+                const caScore   = caRaw   !== null ? Math.min(30, Math.round(caRaw))   : null;
+                const examScore = examRaw !== null ? Math.min(70, Math.round(examRaw)) : null;
                 const total = Math.min(100, (caScore ?? 0) + (examScore ?? 0));
                 const { grade, remark, color } = computeGrade(total);
                 // editable raw inputs (admin edits the raw score, not the weighted)
@@ -1239,16 +1248,16 @@ function renderResultsUI() {
                     <td>${safeValue(s.semester || '1st')}</td>
                     <td style="text-align:center;">
                         ${caId ? `<div style="display:flex;align-items:center;gap:4px;">
-                            <input type="number" min="0" max="100" value="${s.ca.score}"
-                                class="score-input" data-result-id="${caId}"
+                            <input type="number" min="0" max="30" value="${s.ca.score}"
+                                class="score-input" data-result-id="${caId}" data-max="30"
                                 style="width:52px;padding:3px 5px;border-radius:4px;border:1px solid #4ade80;background:#0a2e1a;color:#4ade80;font-weight:bold;text-align:center;font-size:0.85em;">
                             <button class="save-score-btn" data-result-id="${caId}" style="background:#4ade80;color:#000;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
                         </div>` : '<span style="color:#555;">—</span>'}
                     </td>
                     <td style="text-align:center;">
                         ${examId ? `<div style="display:flex;align-items:center;gap:4px;">
-                            <input type="number" min="0" max="100" value="${s.exam.score}"
-                                class="score-input" data-result-id="${examId}"
+                            <input type="number" min="0" max="70" value="${s.exam.score}"
+                                class="score-input" data-result-id="${examId}" data-max="70"
                                 style="width:52px;padding:3px 5px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.85em;">
                             <button class="save-score-btn" data-result-id="${examId}" style="background:#00ff88;color:#000;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
                         </div>` : '<span style="color:#555;">—</span>'}
@@ -1269,8 +1278,8 @@ function renderResultsUI() {
                     <table style="width:100%; border-collapse:collapse; font-size:0.82em; color:white;">
                         <thead><tr style="text-align:left; border-bottom:1px solid #444; color:#00ff88;">
                             <th style="padding:8px;">STUDENT NAME</th><th>MATRIX NO</th><th>DEPT</th><th>SEM</th>
-                            <th style="text-align:center;">CA (raw)</th>
-                            <th style="text-align:center;">EXAM (raw)</th>
+                            <th style="text-align:center;">CA/30</th>
+                            <th style="text-align:center;">EXAM/70</th>
                             <th style="text-align:center;">TOTAL</th>
                             <th style="text-align:center;">GRADE</th>
                             <th style="text-align:center;">REMARK</th>
@@ -1308,8 +1317,9 @@ function renderMasterUI() {
         const rows = Object.entries(student.courses).map(([course, data]) => {
             const caRaw   = data.ca   ? parseFloat(data.ca.score)   : null;
             const examRaw = data.exam ? parseFloat(data.exam.score) : null;
-            const caScore   = caRaw   !== null ? Math.min(30, Math.round(caRaw   * 0.30)) : null;
-            const examScore = examRaw !== null ? Math.min(70, Math.round(examRaw * 0.70)) : null;
+            // CA and Exam scores are stored as direct /30 and /70 values (no weighting needed)
+            const caScore   = caRaw   !== null ? Math.min(30, Math.round(caRaw))   : null;
+            const examScore = examRaw !== null ? Math.min(70, Math.round(examRaw)) : null;
             const total = Math.min(100, (caScore ?? 0) + (examScore ?? 0));
             const { grade, remark, color } = computeGrade(total);
             grandTotal += total;
@@ -1322,16 +1332,16 @@ function renderMasterUI() {
                 <td style="text-align:center;">${data.ca ? data.ca.semester || '—' : (data.exam ? data.exam.semester || '—' : '—')}</td>
                 <td style="text-align:center;">
                     ${caId ? `<div style="display:flex;align-items:center;gap:4px;">
-                        <input type="number" min="0" max="100" value="${data.ca.score}"
-                            class="score-input" data-result-id="${caId}"
+                        <input type="number" min="0" max="30" value="${data.ca.score}"
+                            class="score-input" data-result-id="${caId}" data-max="30"
                             style="width:50px;padding:3px 5px;border-radius:4px;border:1px solid #4ade80;background:#0a2e1a;color:#4ade80;font-weight:bold;text-align:center;font-size:0.85em;">
                         <button class="save-score-btn" data-result-id="${caId}" style="background:#4ade80;color:#000;border:none;padding:2px 5px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
                     </div>` : '<span style="color:#555;">—</span>'}
                 </td>
                 <td style="text-align:center;">
                     ${examId ? `<div style="display:flex;align-items:center;gap:4px;">
-                        <input type="number" min="0" max="100" value="${data.exam.score}"
-                            class="score-input" data-result-id="${examId}"
+                        <input type="number" min="0" max="70" value="${data.exam.score}"
+                            class="score-input" data-result-id="${examId}" data-max="70"
                             style="width:50px;padding:3px 5px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.85em;">
                         <button class="save-score-btn" data-result-id="${examId}" style="background:#00ff88;color:#000;border:none;padding:2px 5px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
                     </div>` : '<span style="color:#555;">—</span>'}
@@ -1356,8 +1366,8 @@ function renderMasterUI() {
                 <table style="width:100%; color:white; font-size:0.88em; border-collapse:collapse;">
                     <thead><tr style="color:#00ff88; text-align:left; border-bottom:1px solid #333;">
                         <th style="padding:8px;">COURSE</th><th>SEM</th>
-                        <th style="text-align:center;">CA (raw)</th>
-                        <th style="text-align:center;">EXAM (raw)</th>
+                        <th style="text-align:center;">CA/30</th>
+                        <th style="text-align:center;">EXAM/70</th>
                         <th style="text-align:center;">TOTAL</th>
                         <th style="text-align:center;">GRADE</th>
                         <th style="text-align:center;">REMARK</th>

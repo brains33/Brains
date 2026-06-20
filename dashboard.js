@@ -243,7 +243,8 @@ async function fetchExams() {
             .eq('department', localData.dept.toUpperCase().trim())
             .eq('level', localData.level)
             .eq('semester', localData.semester)
-            .eq('is_carryover', false);
+            .eq('is_carryover', false)
+            .eq('is_ca', false);
 
         const now = Date.now();
         const sessionMap = {};
@@ -352,6 +353,7 @@ async function verifyAndStart() {
             .eq('semester', student.semester)
             .eq('course', activeSub)
             .eq('is_carryover', false)
+            .eq('is_ca', false)
             .maybeSingle();
 
         if (!session && (!error || error.code === 'PGRST116')) {
@@ -414,7 +416,8 @@ async function syncGatekeeper() {
             .eq('department', localData.dept)
             .eq('level', localData.level)
             .eq('semester', localData.semester)
-            .eq('is_carryover', false);
+            .eq('is_carryover', false)
+            .eq('is_ca', false);
 
         const gateBadge    = document.getElementById('gateBadge');
         const displayToken = document.getElementById('displayToken');
@@ -827,8 +830,9 @@ async function downloadResultsPDF() {
     let rowIdx = 0;
     const rows = Object.entries(courseMap).map(([course, data]) => {
         rowIdx++;
-        const caScore   = data.ca   ? Math.min(30, Math.round(parseFloat(data.ca.score)   * 0.30)) : 0;
-        const examScore = data.exam ? Math.min(70, Math.round(parseFloat(data.exam.score) * 0.70)) : 0;
+        // CA and Exam scores are stored as direct /30 and /70 values (no weighting needed)
+        const caScore   = data.ca   ? Math.min(30, Math.round(parseFloat(data.ca.score)))   : 0;
+        const examScore = data.exam ? Math.min(70, Math.round(parseFloat(data.exam.score))) : 0;
         const total     = Math.min(100, caScore + examScore);
         const { grade, remark } = computeGrade(total);
         const creditUnits = catalogMap[course] !== undefined ? catalogMap[course] : 3;
