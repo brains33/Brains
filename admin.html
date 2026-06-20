@@ -312,11 +312,41 @@
             </div>
         </div>
         <div class="card" style="margin-top:20px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <!-- Header row -->
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
                 <h2 style="margin:0;">Questions Library — <span id="count" style="color:#00ff88;">0</span> total</h2>
                 <button id="wipeAllBtn" style="display:none;background:#ff4444;color:white;border:none;padding:10px 15px;border-radius:5px;cursor:pointer;font-weight:bold;">🗑️ WIPE ALL</button>
             </div>
-            <input id="qSearch" placeholder="🔍 Filter by Subject or Question..." style="margin:15px 0;border:2px solid #00ff88;">
+
+            <!-- Filter dropdowns -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:12px;">
+                <div>
+                    <label style="color:#aaa;font-size:0.75rem;display:block;margin-bottom:3px;">Faculty</label>
+                    <select id="qFilterFaculty" class="admin-input" style="width:100%;"><option value="">-- All Faculties --</option></select>
+                </div>
+                <div>
+                    <label style="color:#aaa;font-size:0.75rem;display:block;margin-bottom:3px;">Department</label>
+                    <select id="qFilterDept" class="admin-input" style="width:100%;"><option value="">-- All Departments --</option></select>
+                </div>
+                <div>
+                    <label style="color:#aaa;font-size:0.75rem;display:block;margin-bottom:3px;">Level</label>
+                    <select id="qFilterLevel" class="admin-input" style="width:100%;"><option value="">-- All Levels --</option></select>
+                </div>
+                <div>
+                    <label style="color:#aaa;font-size:0.75rem;display:block;margin-bottom:3px;">Semester</label>
+                    <select id="qFilterSemester" class="admin-input" style="width:100%;"><option value="">-- All Semesters --</option></select>
+                </div>
+            </div>
+
+            <!-- Search input -->
+            <input id="qSearch" placeholder="🔍 Filter by Course Code or Question text..." style="margin-bottom:12px;border:2px solid #00ff88;">
+
+            <!-- Export buttons -->
+            <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+                <button id="exportQuestionsCSVBtn" style="background:#0f5132;color:#00ff88;border:1px solid #00ff88;padding:9px 18px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:0.85rem;">⬇️ Export CSV</button>
+                <button id="exportQuestionsWordBtn" style="background:#1a3a6b;color:#7eb8f7;border:1px solid #7eb8f7;padding:9px 18px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:0.85rem;">📄 Export Word (.doc)</button>
+            </div>
+
             <div id="qList" style="max-height:500px;overflow-y:auto;padding-right:5px;"><p style="text-align:center;opacity:0.5;">Loading questions...</p></div>
         </div>
     </div>
