@@ -922,6 +922,33 @@ async function initQuestionPage() {
         window.allDepartments = dData || [];
         document.getElementById('bulk_faculty').innerHTML = '<option value="">-- Select Faculty --</option>' + window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
         document.getElementById('q_faculty').innerHTML = '<option value="">-- Select Faculty --</option>' + window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
+
+        // ── Question Library: populate faculty + wire all listeners ───
+        const qfFacEl = document.getElementById('qFilterFaculty');
+        if (qfFacEl) {
+            qfFacEl.innerHTML = '<option value="">-- All Faculties --</option>' +
+                window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
+            qfFacEl.addEventListener('change', () => {
+                const facName = qfFacEl.value;
+                const deptSel = document.getElementById('qFilterDept');
+                if (!deptSel) return;
+                if (!facName) {
+                    deptSel.innerHTML = '<option value="">-- All Departments --</option>';
+                } else {
+                    const facObj   = window.allFaculties.find(f => f.name === facName);
+                    const filtered = facObj ? window.allDepartments.filter(d => d.faculty_id === facObj.id) : [];
+                    deptSel.innerHTML = '<option value="">-- All Departments --</option>' +
+                        filtered.map(d => `<option value="${escapeAttr(d.name)}">${sanitise(d.name)}</option>`).join('');
+                }
+                loadList();
+            });
+        }
+        document.getElementById('qFilterDept')?.addEventListener('change', loadList);
+        document.getElementById('qFilterLevel')?.addEventListener('change', loadList);
+        document.getElementById('qFilterSemester')?.addEventListener('change', loadList);
+        document.getElementById('exportQuestionsCSVBtn')?.addEventListener('click', exportQuestionsCSV);
+        document.getElementById('exportQuestionsWordBtn')?.addEventListener('click', exportQuestionsWord);
+
         loadAllStaticDropdowns();
         loadList();
     } catch (err) {
