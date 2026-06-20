@@ -788,6 +788,75 @@ function computeGPA(courseEntries) {
     return { gpa: (totalQP / totalUnits).toFixed(2), totalUnits, totalQP };
 }
 
+function remarkFor(gpa) {
+    const g = parseFloat(gpa);
+    if (g >= 3.5) return 'Distinction';
+    if (g >= 3.0) return 'Upper Credit';
+    if (g >= 2.0) return 'Lower Credit';
+    if (g >= 1.0) return 'Pass';
+    return 'Fail';
+}
+
+function buildSemesterTableHTML(semesterLabel, courseMap, catalogMap) {
+    const courseEntries = [];
+    let rowIdx = 0;
+    const rows = Object.entries(courseMap).map(([course, data]) => {
+        rowIdx++;
+        // CA and Exam scores are stored as direct /30 and /70 values (no weighting needed)
+        const caScore   = data.ca   ? Math.min(30, Math.round(parseFloat(data.ca.score)))   : 0;
+        const examScore = data.exam ? Math.min(70, Math.round(parseFloat(data.exam.score))) : 0;
+        const total     = Math.min(100, caScore + examScore);
+        const { grade, remark } = computeGrade(total);
+        const creditUnits = catalogMap[course] !== undefined ? catalogMap[course] : 3;
+        const gp          = gradePoint(grade);
+        const qp          = gp * creditUnits;
+        const gradeColor  = grade === 'F' ? '#cc0000' : grade === 'D' ? '#b45309' : '#0f5132';
+        const bg          = rowIdx % 2 === 0 ? '#f9f9f9' : '#fff';
+
+        courseEntries.push({ course, total, grade, creditUnits, gp, qp });
+
+        return `
+        <tr style="background:${bg}">
+            <td style="text-align:center;">${rowIdx}</td>
+            <td style="font-weight:bold; letter-spacing:0.4px;">${course}</td>
+            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${grade}</td>
+            <td style="text-align:center;">
+                <span class="remark-pill" style="background:${grade === 'F' ? '#fee2e2' : '#d1fae5'}; color:${gradeColor};">
+                    ${remark}
+                </span>
+            </td>
+        </tr>`;
+    }).join('');
+
+    // GP/QP/Units still computed (needed for GPA/CGPA) but not shown per-row, matching the
+    // standard Nigerian result slip format (NUC/NCE/College of Education) shown to students.
+    const { gpa, totalUnits, totalQP } = computeGPA(courseEntries);
+    const gpaColor = gpa === null ? '#555' : parseFloat(gpa) >= 3.5 ? '#0f5132' : parseFloat(gpa) >= 2.0 ? '#b45309' : '#cc0000';
+
+    const semBlock = `
+    <div class="sem-block">
+      <div class="sem-title">${semesterLabel} Semester Results</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px;">S/N</th>
+            <th>Course Code</th>
+            <th style="width:70px; text-align:center;">Grade</th>
+            <th style="width:110px; text-align:center;">Remark</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${gpa !== null ? `
+      <div class="sem-gpa-line">
+        Total Units: <strong>${totalUnits}</strong> &nbsp;|&nbsp; Total QP: <strong>${totalQP}</strong> &nbsp;|&nbsp;
+        GPA (${semesterLabel} Semester): <strong style="color:${gpaColor}; font-size:1rem;">${gpa}</strong> (${remarkFor(gpa)})
+      </div>` : ''}
+    </div>`;
+
+    return { html: semBlock, totalUnits, totalQP, gpa };
+}
+
 async function downloadResultsPDF() {
     if (!localData) return alert("Student data not loaded.");
 
@@ -816,94 +885,70 @@ async function downloadResultsPDF() {
         }
     } catch (e) { /* catalog may not exist yet — use fallback */ }
 
-    // 4. Group by course: pair exam + CA
-    const courseMap = {};
+    // 4. Group by semester first, then by course: pair exam + CA
+    const semesterMap = {}; // { '1st': { COURSE: {ca, exam} }, '2nd': {...} }
     for (const r of results) {
+        const sem = r.semester || localData.semester || '1st';
         const key = (r.subject || r.course || 'N/A').toUpperCase();
-        if (!courseMap[key]) courseMap[key] = { exam: null, ca: null };
-        if (r.is_ca) courseMap[key].ca   = r;
-        else         courseMap[key].exam = r;
+        if (!semesterMap[sem]) semesterMap[sem] = {};
+        if (!semesterMap[sem][key]) semesterMap[sem][key] = { exam: null, ca: null };
+        if (r.is_ca) semesterMap[sem][key].ca   = r;
+        else         semesterMap[sem][key].exam = r;
     }
 
-    // 5. Build rows + collect data for GPA computation
-    const courseEntries = [];
-    let rowIdx = 0;
-    const rows = Object.entries(courseMap).map(([course, data]) => {
-        rowIdx++;
-        // CA and Exam scores are stored as direct /30 and /70 values (no weighting needed)
-        const caScore   = data.ca   ? Math.min(30, Math.round(parseFloat(data.ca.score)))   : 0;
-        const examScore = data.exam ? Math.min(70, Math.round(parseFloat(data.exam.score))) : 0;
-        const total     = Math.min(100, caScore + examScore);
-        const { grade, remark } = computeGrade(total);
-        const creditUnits = catalogMap[course] !== undefined ? catalogMap[course] : 3;
-        const gp          = gradePoint(grade);
-        const qp          = gp * creditUnits;
-        const gradeColor  = grade === 'F' ? '#cc0000' : grade === 'D' ? '#b45309' : '#0f5132';
-        const bg          = rowIdx % 2 === 0 ? '#f9f9f9' : '#fff';
+    // 5. Build a table block per semester + accumulate for true CGPA
+    const semesterOrder = ['1st', '2nd'].filter(s => semesterMap[s]);
+    Object.keys(semesterMap).forEach(s => { if (!semesterOrder.includes(s)) semesterOrder.push(s); });
 
-        courseEntries.push({ course, total, grade, creditUnits, gp, qp });
-
-        return `
-        <tr style="background:${bg}">
-            <td style="text-align:center;">${rowIdx}</td>
-            <td style="font-weight:bold; letter-spacing:0.5px;">${course}</td>
-            <td style="text-align:center;">${data.ca   ? caScore   : '—'}</td>
-            <td style="text-align:center;">${data.exam ? examScore : '—'}</td>
-            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${total}</td>
-            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${grade}</td>
-            <td style="text-align:center; font-weight:bold; color:#555;">${creditUnits}</td>
-            <td style="text-align:center; color:#555;">${gp}</td>
-            <td style="text-align:center; color:#555;">${qp}</td>
-            <td style="text-align:center;">
-                <span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:bold;
-                             background:${grade === 'F' ? '#fee2e2' : '#d1fae5'}; color:${gradeColor};">
-                    ${remark}
-                </span>
-            </td>
-        </tr>`;
+    let combinedUnits = 0, combinedQP = 0;
+    const semesterBlocksHTML = semesterOrder.map(sem => {
+        const { html, totalUnits, totalQP } = buildSemesterTableHTML(sem, semesterMap[sem], catalogMap);
+        combinedUnits += totalUnits;
+        combinedQP    += totalQP;
+        return html;
     }).join('');
 
-    // 6. Compute GPA (current semester) and CGPA (all courses combined)
-    const { gpa, totalUnits, totalQP } = computeGPA(courseEntries);
-    const gpaColor  = gpa === null ? '#555' : parseFloat(gpa) >= 3.5 ? '#0f5132' : parseFloat(gpa) >= 2.0 ? '#b45309' : '#cc0000';
-    const gpaBlock  = gpa !== null ? `
+    // 6. True CGPA = combined Quality Points ÷ combined Credit Units across BOTH semesters
+    const cgpa = combinedUnits > 0 ? (combinedQP / combinedUnits).toFixed(2) : null;
+    const cgpaColor = cgpa === null ? '#555' : parseFloat(cgpa) >= 3.5 ? '#0f5132' : parseFloat(cgpa) >= 2.0 ? '#b45309' : '#cc0000';
+    const cgpaBlock = cgpa !== null ? `
         <div class="gpa-box">
-            <div class="gpa-item"><label>Total Credit Units</label><span>${totalUnits}</span></div>
-            <div class="gpa-item"><label>Total Quality Points</label><span>${totalQP}</span></div>
-            <div class="gpa-item"><label>GPA (${localData.semester} Semester)</label>
-                <span style="color:${gpaColor}; font-size:1.4rem;">${gpa}</span>
+            <div class="gpa-item"><label>Total Credit Units</label><span>${combinedUnits}</span></div>
+            <div class="gpa-item"><label>Total Quality Points</label><span>${combinedQP}</span></div>
+            <div class="gpa-item"><label>Cumulative GPA (CGPA)</label>
+                <span style="color:${cgpaColor}; font-size:1.4rem;">${cgpa}</span>
             </div>
             <div class="gpa-item"><label>CGPA Remark</label>
-                <span style="color:${gpaColor};">${parseFloat(gpa) >= 3.5 ? 'Distinction' : parseFloat(gpa) >= 3.0 ? 'Upper Credit' : parseFloat(gpa) >= 2.0 ? 'Lower Credit' : parseFloat(gpa) >= 1.0 ? 'Pass' : 'Fail'}</span>
+                <span style="color:${cgpaColor};">${remarkFor(cgpa)}</span>
             </div>
         </div>` : '';
-
-    const catalogNote = Object.keys(catalogMap).length < courseEntries.length
-        ? '<p style="color:#b45309; font-size:0.72rem; margin-top:6px;">⚠️ Some credit units defaulted to 3 (not yet set in the course catalog). Contact the admin to update the catalog for accurate GPA.</p>'
-        : '';
 
     const printHTML = `<!DOCTYPE html>
 <html><head><title>Result Slip — ${localData.name}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; }
-  .header { text-align:center; border-bottom: 3px solid #0f5132; padding-bottom:14px; margin-bottom:20px; }
-  .header h1 { color:#0f5132; font-size:1.3rem; margin-bottom:4px; }
-  .header p  { color:#555; font-size:0.8rem; }
-  .info-box  { display:grid; grid-template-columns:1fr 1fr; gap:10px 30px; border:1px solid #ccc; border-radius:8px; padding:14px 18px; margin-bottom:22px; background:#f9fdfb; }
-  .info-item label { display:block; font-size:0.68rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; }
-  .info-item span  { font-weight:bold; color:#0f5132; font-size:0.95rem; }
+  body { font-family: Arial, sans-serif; padding: 24px; color: #111; font-size: 11.5px; }
+  .header { text-align:center; border-bottom: 3px solid #0f5132; padding-bottom:12px; margin-bottom:16px; }
+  .header h1 { color:#0f5132; font-size:1.25rem; margin-bottom:4px; }
+  .header p  { color:#555; font-size:0.75rem; }
+  .info-box  { display:grid; grid-template-columns:1fr 1fr; gap:8px 30px; border:1px solid #ccc; border-radius:8px; padding:12px 16px; margin-bottom:16px; background:#f9fdfb; }
+  .info-item label { display:block; font-size:0.64rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; }
+  .info-item span  { font-weight:bold; color:#0f5132; font-size:0.9rem; }
+  .sem-block { margin-bottom:10px; page-break-inside: avoid; }
+  .sem-title { font-weight:bold; color:#0f5132; font-size:0.85rem; margin-bottom:5px; letter-spacing:0.4px; text-transform:uppercase; }
   table { width:100%; border-collapse:collapse; }
   thead tr { background:#0f5132; color:white; }
-  th { padding:10px 12px; text-align:left; font-size:0.8rem; letter-spacing:0.5px; }
-  td { border:1px solid #ddd; padding:10px 12px; }
-  .key-box { margin-top:18px; padding:10px 14px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:0.75rem; color:#14532d; }
-  .key-box strong { display:block; margin-bottom:4px; }
-  .gpa-box { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px 20px; border:2px solid #0f5132; border-radius:10px; padding:16px 20px; margin-top:20px; background:#f0fdf4; }
-  .gpa-item label { display:block; font-size:0.65rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
-  .gpa-item span  { font-weight:bold; color:#0f5132; font-size:1.05rem; }
-  .footer { margin-top:28px; text-align:center; font-size:0.7rem; color:#aaa; border-top:1px solid #eee; padding-top:10px; }
-  @media print { body { padding:15px; } }
+  th { padding:6px 8px; text-align:left; font-size:0.7rem; letter-spacing:0.3px; }
+  td { border:1px solid #ddd; padding:5px 8px; font-size:0.74rem; }
+  .remark-pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.68rem; font-weight:bold; }
+  .sem-gpa-line { margin-top:5px; padding:6px 10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.72rem; color:#14532d; }
+  .key-box { margin-top:14px; padding:9px 13px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:0.7rem; color:#14532d; }
+  .key-box strong { display:block; margin-bottom:3px; }
+  .gpa-box { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px 18px; border:2px solid #0f5132; border-radius:10px; padding:13px 18px; margin-top:14px; background:#f0fdf4; page-break-inside: avoid; }
+  .gpa-item label { display:block; font-size:0.62rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
+  .gpa-item span  { font-weight:bold; color:#0f5132; font-size:1rem; }
+  .footer { margin-top:18px; text-align:center; font-size:0.65rem; color:#aaa; border-top:1px solid #eee; padding-top:8px; }
+  @media print { body { padding:14px; } }
 </style>
 </head>
 <body>
@@ -917,31 +962,14 @@ async function downloadResultsPDF() {
     <div class="info-item"><label>Faculty</label><span>${localData.faculty || 'N/A'}</span></div>
     <div class="info-item"><label>Department</label><span>${localData.dept}</span></div>
     <div class="info-item"><label>Level</label><span>${localData.level}L</span></div>
-    <div class="info-item"><label>Semester</label><span>${localData.semester} Semester</span></div>
+    <div class="info-item"><label>Session Semesters</label><span>${semesterOrder.join(' & ')} Semester</span></div>
   </div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width:32px;">#</th>
-        <th>Course Code</th>
-        <th style="width:58px; text-align:center;">CA (30)</th>
-        <th style="width:63px; text-align:center;">Exam (70)</th>
-        <th style="width:63px; text-align:center;">Total</th>
-        <th style="width:48px; text-align:center;">Grade</th>
-        <th style="width:42px; text-align:center;">Units</th>
-        <th style="width:36px; text-align:center;">GP</th>
-        <th style="width:36px; text-align:center;">QP</th>
-        <th style="width:85px; text-align:center;">Remark</th>
-      </tr>
-    </thead>
-    <tbody>${rows}</tbody>
-  </table>
-  ${gpaBlock}
-  ${catalogNote}
+  ${semesterBlocksHTML}
+  ${cgpaBlock}
   <div class="key-box">
-    <strong>Grading Key:</strong>
-    A — 70+ (Excellent, GP=5) &nbsp;|&nbsp; B — 60–69 (Very Good, GP=4) &nbsp;|&nbsp; C — 50–59 (Good, GP=3) &nbsp;|&nbsp; D — 40–49 (Pass, GP=2) &nbsp;|&nbsp; F — Below 40 (Fail, GP=0)
-    <br>GPA = Total Quality Points ÷ Total Credit Units &nbsp;|&nbsp; Distinction ≥ 3.5 &nbsp;|&nbsp; Upper Credit ≥ 3.0 &nbsp;|&nbsp; Lower Credit ≥ 2.0 &nbsp;|&nbsp; Pass ≥ 1.0
+    <strong>Nigerian NUC / NCCE Approved Grading Scale:</strong>
+    A — Excellent &nbsp;|&nbsp; B — Very Good &nbsp;|&nbsp; C — Good &nbsp;|&nbsp; D — Pass &nbsp;|&nbsp; F — Fail
+    <br>Distinction ≥ 3.50 &nbsp;|&nbsp; Upper Credit ≥ 3.00 &nbsp;|&nbsp; Lower Credit ≥ 2.00 &nbsp;|&nbsp; Pass ≥ 1.00 &nbsp;|&nbsp; Fail &lt; 1.00
   </div>
   <div class="footer">BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This document is auto-generated.</div>
 </body></html>`;

@@ -1621,103 +1621,228 @@ function printCoursePDF() {
     else generateBrandedPDF("COURSE PERFORMANCE REPORT", filtered);
 }
 
-function printMasterPDF() {
+function gradePoint(grade) {
+    // Nigerian polytechnic / college of health grading scale (5-point) — NUC / NCCE standard
+    if (grade === 'A') return 5;
+    if (grade === 'B') return 4;
+    if (grade === 'C') return 3;
+    if (grade === 'D') return 2;
+    return 0; // F
+}
+
+function computeGPA(courseEntries) {
+    let totalQP = 0, totalUnits = 0;
+    for (const c of courseEntries) {
+        if (c.grade === 'F' || c.creditUnits === 0) {
+            totalQP    += 0;
+            totalUnits += c.creditUnits;
+        } else {
+            totalQP    += gradePoint(c.grade) * c.creditUnits;
+            totalUnits += c.creditUnits;
+        }
+    }
+    if (totalUnits === 0) return { gpa: null, totalUnits: 0, totalQP: 0 };
+    return { gpa: (totalQP / totalUnits).toFixed(2), totalUnits, totalQP };
+}
+
+function remarkFor(gpa) {
+    const g = parseFloat(gpa);
+    if (g >= 3.5) return 'Distinction';
+    if (g >= 3.0) return 'Upper Credit';
+    if (g >= 2.0) return 'Lower Credit';
+    if (g >= 1.0) return 'Pass';
+    return 'Fail';
+}
+
+function buildAdminSemesterTableHTML(semesterLabel, courseMap, catalogMap) {
+    const courseEntries = [];
+    let rowIdx = 0;
+    const rows = Object.entries(courseMap).map(([course, data]) => {
+        rowIdx++;
+        const caScore   = data.ca   ? Math.min(30, Math.round(parseFloat(data.ca.score)))   : 0;
+        const examScore = data.exam ? Math.min(70, Math.round(parseFloat(data.exam.score))) : 0;
+        const total     = Math.min(100, caScore + examScore);
+        const { grade, remark } = computeGrade(total);
+        const creditUnits = catalogMap[course] !== undefined ? catalogMap[course] : 3;
+        const gp          = gradePoint(grade);
+        const qp          = gp * creditUnits;
+        const gradeColor  = grade === 'F' ? '#cc0000' : grade === 'D' ? '#b45309' : '#0f5132';
+        const bg          = rowIdx % 2 === 0 ? '#f9f9f9' : '#fff';
+
+        courseEntries.push({ course, total, grade, creditUnits, gp, qp });
+
+        return `
+        <tr style="background:${bg}">
+            <td style="text-align:center;">${rowIdx}</td>
+            <td style="font-weight:bold; letter-spacing:0.4px;">${safeValue(course)}</td>
+            <td style="text-align:center;">${data.ca   ? caScore   : '—'}</td>
+            <td style="text-align:center;">${data.exam ? examScore : '—'}</td>
+            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${total}</td>
+            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${grade}</td>
+            <td style="text-align:center; font-weight:bold; color:#555;">${creditUnits}</td>
+            <td style="text-align:center; color:#555;">${gp}</td>
+            <td style="text-align:center; color:#555;">${qp}</td>
+            <td style="text-align:center;">
+                <span class="remark-pill" style="background:${grade === 'F' ? '#fee2e2' : '#d1fae5'}; color:${gradeColor};">
+                    ${remark}
+                </span>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const { gpa, totalUnits, totalQP } = computeGPA(courseEntries);
+    const gpaColor = gpa === null ? '#555' : parseFloat(gpa) >= 3.5 ? '#0f5132' : parseFloat(gpa) >= 2.0 ? '#b45309' : '#cc0000';
+
+    const semBlock = `
+    <div class="sem-block">
+      <div class="sem-title">${safeValue(semesterLabel)} Semester Results</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:28px;">#</th>
+            <th>Course Code</th>
+            <th style="width:52px; text-align:center;">CA (30)</th>
+            <th style="width:56px; text-align:center;">Exam (70)</th>
+            <th style="width:56px; text-align:center;">Total</th>
+            <th style="width:44px; text-align:center;">Grade</th>
+            <th style="width:40px; text-align:center;">Units</th>
+            <th style="width:32px; text-align:center;">GP</th>
+            <th style="width:32px; text-align:center;">QP</th>
+            <th style="width:78px; text-align:center;">Remark</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${gpa !== null ? `
+      <div class="sem-gpa-line">
+        Total Units: <strong>${totalUnits}</strong> &nbsp;|&nbsp; Total QP: <strong>${totalQP}</strong> &nbsp;|&nbsp;
+        GPA (${safeValue(semesterLabel)} Semester): <strong style="color:${gpaColor}; font-size:1rem;">${gpa}</strong> (${remarkFor(gpa)})
+      </div>` : ''}
+    </div>`;
+
+    return { html: semBlock, totalUnits, totalQP };
+}
+
+async function printMasterPDF() {
     const term = document.getElementById("masterSearchInput").value.trim().toLowerCase();
     const filtered = term === "" ? allResults : allResults.filter(r => r.name.toLowerCase().includes(term) || (r.matrix_no && r.matrix_no.toLowerCase().includes(term)));
     if (filtered.length === 0) { alert("No records found for '" + term + "'."); return; }
 
+    // Group by student
     const masterData = filtered.reduce((acc, cur) => {
         const key = cur.name.toUpperCase();
-        if (!acc[key]) acc[key] = { info: cur, exams: [] };
-        acc[key].exams.push(cur);
+        if (!acc[key]) acc[key] = { info: cur, results: [] };
+        acc[key].results.push(cur);
         return acc;
     }, {});
 
+    // Fetch credit units from the course_catalog for every (dept, level, course) combo involved
+    let catalogMap = {};
+    try {
+        const deptLevelPairs = [...new Set(filtered.map(r => `${(r.department || '').toUpperCase().trim()}__${r.level || ''}`))];
+        const courseKeys = [...new Set(filtered.map(r => (r.subject || r.course || 'N/A').toUpperCase()))];
+        const { data: catalog } = await sb.from('course_catalog')
+            .select('course_code, credit_units, department, level')
+            .in('course_code', courseKeys);
+        if (catalog) {
+            catalog.forEach(c => {
+                const k = `${(c.department || '').toUpperCase().trim()}__${c.level}__${c.course_code.toUpperCase()}`;
+                catalogMap[k] = c.credit_units;
+            });
+        }
+    } catch (e) { /* catalog may not exist yet — fallback to 3 units */ }
+
     const studentBlocks = Object.keys(masterData).map(name => {
         const student = masterData[name];
-        const total = student.exams.reduce((sum, ex) => sum + Number(ex.score), 0);
-        const avg = Math.round(total / student.exams.length);
-        const isPassing = avg >= 50;
+        const dept = student.info.department || 'N/A';
+        const level = student.info.level || 'N/A';
 
-        // QR data – same as exam card but with academic summary
+        // Build a per-student catalog lookup keyed by course only (matches their own dept/level)
+        const studentCatalogMap = {};
+        student.results.forEach(r => {
+            const course = (r.subject || r.course || 'N/A').toUpperCase();
+            const k = `${(dept || '').toUpperCase().trim()}__${level}__${course}`;
+            if (catalogMap[k] !== undefined) studentCatalogMap[course] = catalogMap[k];
+        });
+
+        // Group this student's results by semester, then by course (pair CA + Exam)
+        const semesterMap = {};
+        for (const r of student.results) {
+            const sem = r.semester || '1st';
+            const key = (r.subject || r.course || 'N/A').toUpperCase();
+            if (!semesterMap[sem]) semesterMap[sem] = {};
+            if (!semesterMap[sem][key]) semesterMap[sem][key] = { exam: null, ca: null };
+            if (r.is_ca) semesterMap[sem][key].ca   = r;
+            else         semesterMap[sem][key].exam = r;
+        }
+
+        const semesterOrder = ['1st', '2nd'].filter(s => semesterMap[s]);
+        Object.keys(semesterMap).forEach(s => { if (!semesterOrder.includes(s)) semesterOrder.push(s); });
+
+        let combinedUnits = 0, combinedQP = 0;
+        const semesterBlocksHTML = semesterOrder.map(sem => {
+            const { html, totalUnits, totalQP } = buildAdminSemesterTableHTML(sem, semesterMap[sem], studentCatalogMap);
+            combinedUnits += totalUnits;
+            combinedQP    += totalQP;
+            return html;
+        }).join('');
+
+        const cgpa = combinedUnits > 0 ? (combinedQP / combinedUnits).toFixed(2) : null;
+        const cgpaColor = cgpa === null ? '#555' : parseFloat(cgpa) >= 3.5 ? '#0f5132' : parseFloat(cgpa) >= 2.0 ? '#b45309' : '#cc0000';
+        const cgpaBlock = cgpa !== null ? `
+            <div class="gpa-box">
+                <div class="gpa-item"><label>Total Credit Units</label><span>${combinedUnits}</span></div>
+                <div class="gpa-item"><label>Total Quality Points</label><span>${combinedQP}</span></div>
+                <div class="gpa-item"><label>Cumulative GPA (CGPA)</label>
+                    <span style="color:${cgpaColor}; font-size:1.4rem;">${cgpa}</span>
+                </div>
+                <div class="gpa-item"><label>CGPA Remark</label>
+                    <span style="color:${cgpaColor};">${remarkFor(cgpa)}</span>
+                </div>
+            </div>` : '';
+
+        // QR data – academic summary
         const qrData = encodeURIComponent([
             `NAME: ${name}`,
             `MATRIC: ${student.info.matrix_no}`,
-            `DEPT: ${student.info.department || 'N/A'}`,
-            `LEVEL: ${student.info.level || 'N/A'}`,
-            `AVERAGE: ${avg}%`,
-            `REMARK: ${isPassing ? 'PASS' : 'FAIL'}`,
+            `DEPT: ${dept}`,
+            `LEVEL: ${level}`,
+            `CGPA: ${cgpa !== null ? cgpa : 'N/A'}`,
+            `REMARK: ${cgpa !== null ? remarkFor(cgpa) : 'N/A'}`,
             `VERIFIED BY: BRAINS ACADEMIC INTELLIGENCE`
         ].join(' | '));
         const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${qrData}`;
 
-        const rows = student.exams.map((ex, i) => {
-            const course = (ex.subject || ex.course || 'N/A').toUpperCase();
-            const score = ex.score ?? 'N/A';
-            return `
-            <tr style="background:${i % 2 === 0 ? '#f9f9f9' : '#fff'}">
-                <td style="padding: 9px 10px; text-align:center; width:36px;">${i+1}</td>
-                <td style="padding: 9px 10px; font-weight:bold; letter-spacing:0.5px;">${safeValue(course)}</td>
-                <td style="padding: 9px 10px; text-align:center;">${safeValue(ex.semester || '1st')}</td>
-                <td style="padding: 9px 10px; text-align:center; font-weight:bold; color:${isPassing ? '#0f5132' : '#cc0000'};">${score}%</td>
-            </tr>`;
-        }).join('');
-
         return `
-            <div class="student-record" style="margin-bottom: 35px; border: 1px solid #ddd; border-radius: 12px; overflow: hidden; page-break-inside: avoid;">
-                <!-- Header (similar to exam card) -->
-                <div style="background: #0f5132; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div class="student-record" style="margin-bottom: 30px; border: 1px solid #ddd; border-radius: 12px; overflow: hidden; page-break-inside: avoid;">
+                <div style="background: #0f5132; color: white; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <div>
-                        <div style="font-size: 1.2rem; font-weight: bold; text-transform: uppercase; margin-bottom: 5px;">${safeValue(name)}</div>
-                        <div style="font-size: 0.75rem; opacity: 0.9;">Matrix: ${safeValue(student.info.matrix_no)}</div>
+                        <div style="font-size: 1.1rem; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">${safeValue(name)}</div>
+                        <div style="font-size: 0.72rem; opacity: 0.9;">Matrix: ${safeValue(student.info.matrix_no)}</div>
                     </div>
-                    <div style="text-align: center; background: white; padding: 6px; border-radius: 8px;">
-                        <img src="${qrCodeUrl}" alt="QR Code" width="80" height="80" style="display: block;">
-                        <div style="font-size: 8px; color: #0f5132; font-weight: bold; margin-top: 3px;">VERIFY</div>
-                    </div>
-                </div>
-
-                <!-- Info box (like exam card info-box) -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 30px; background: #f9fdfb; padding: 14px 18px; border-bottom: 1px solid #ddd;">
-                    <div><label style="display: block; font-size: 0.68rem; color: #888; text-transform: uppercase;">Faculty</label><span style="font-weight: bold; color: #0f5132;">${safeValue(student.info.faculty || 'N/A')}</span></div>
-                    <div><label style="display: block; font-size: 0.68rem; color: #888; text-transform: uppercase;">Department</label><span style="font-weight: bold; color: #0f5132;">${safeValue(student.info.department || 'N/A')}</span></div>
-                    <div><label style="display: block; font-size: 0.68rem; color: #888; text-transform: uppercase;">Level</label><span style="font-weight: bold; color: #0f5132;">${safeValue(student.info.level || 'N/A')}L</span></div>
-                    <div><label style="display: block; font-size: 0.68rem; color: #888; text-transform: uppercase;">Semester</label><span style="font-weight: bold; color: #0f5132;">${safeValue(student.info.semester || 'N/A')} Semester</span></div>
-                </div>
-
-                <!-- Table of courses (styled like exam card table) -->
-                <div style="padding: 10px 18px;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-                        <thead>
-                            <tr style="background: #0f5132; color: white;">
-                                <th style="padding: 9px 10px; text-align: center;">#</th>
-                                <th style="padding: 9px 10px; text-align: left;">Course Code</th>
-                                <th style="padding: 9px 10px; text-align: center;">Semester</th>
-                                <th style="padding: 9px 10px; text-align: center;">Score (%)</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                </div>
-
-                <!-- Summary row (like exam card summary, but with academic stats) -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; background: #f8fafc; border-top: 2px solid #e2e8f0;">
-                    <div style="font-size: 0.85rem; color: #2d3e50;">
-                        📊 <strong>Total Points:</strong> ${total} pts &nbsp;|&nbsp;
-                        <strong>Average:</strong> ${avg}% &nbsp;
-                        <span style="color: #888;">(${student.exams.length} course${student.exams.length>1?'s':''})</span>
-                    </div>
-                    <div style="font-weight: bold; font-size: 0.9rem; padding: 4px 20px; border-radius: 20px; background: ${isPassing ? '#d4edda' : '#fde8e8'}; color: ${isPassing ? '#0f5132' : '#c0392b'}; border: 2px solid ${isPassing ? '#0f5132' : '#c0392b'};">
-                        ${isPassing ? 'PASS' : 'FAIL'}
+                    <div style="text-align: center; background: white; padding: 5px; border-radius: 8px;">
+                        <img src="${qrCodeUrl}" alt="QR Code" width="70" height="70" style="display: block;">
+                        <div style="font-size: 7px; color: #0f5132; font-weight: bold; margin-top: 2px;">VERIFY</div>
                     </div>
                 </div>
 
-                <!-- Signature and stamp section (optional, but matches exam card style) -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 15px 18px; border-top: 1px solid #eee;">
-                    <div style="border-top: 1px solid #999; padding-top: 8px;"><div style="height: 50px; border-bottom: 1px dashed #ccc; margin-bottom: 4px;"></div><p style="font-size: 0.7rem; color: #555; text-align: center; margin: 0;">Examiner Signature & Date</p></div>
-                    <div style="border-top: 1px solid #999; padding-top: 8px;"><div style="height: 50px; border-bottom: 1px dashed #ccc; margin-bottom: 4px;"></div><p style="font-size: 0.7rem; color: #555; text-align: center; margin: 0;">HOD / Dean Signature & Date</p></div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 26px; background: #f9fdfb; padding: 11px 16px; border-bottom: 1px solid #ddd;">
+                    <div><label style="display: block; font-size: 0.64rem; color: #888; text-transform: uppercase;">Faculty</label><span style="font-weight: bold; color: #0f5132; font-size:0.85rem;">${safeValue(student.info.faculty || 'N/A')}</span></div>
+                    <div><label style="display: block; font-size: 0.64rem; color: #888; text-transform: uppercase;">Department</label><span style="font-weight: bold; color: #0f5132; font-size:0.85rem;">${safeValue(dept)}</span></div>
+                    <div><label style="display: block; font-size: 0.64rem; color: #888; text-transform: uppercase;">Level</label><span style="font-weight: bold; color: #0f5132; font-size:0.85rem;">${safeValue(level)}L</span></div>
+                    <div><label style="display: block; font-size: 0.64rem; color: #888; text-transform: uppercase;">Session Semesters</label><span style="font-weight: bold; color: #0f5132; font-size:0.85rem;">${safeValue(semesterOrder.join(' & '))} Semester</span></div>
                 </div>
-                <div style="border: 2px dashed #ccc; border-radius: 8px; height: 80px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 0.7rem; margin: 0 18px 18px 18px;">OFFICIAL STAMP / SEAL</div>
+
+                <div style="padding: 10px 16px;">
+                    ${semesterBlocksHTML}
+                    ${cgpaBlock}
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 13px 16px; border-top: 1px solid #eee;">
+                    <div style="border-top: 1px solid #999; padding-top: 7px;"><div style="height: 40px; border-bottom: 1px dashed #ccc; margin-bottom: 3px;"></div><p style="font-size: 0.66rem; color: #555; text-align: center; margin: 0;">Examiner Signature & Date</p></div>
+                    <div style="border-top: 1px solid #999; padding-top: 7px;"><div style="height: 40px; border-bottom: 1px dashed #ccc; margin-bottom: 3px;"></div><p style="font-size: 0.66rem; color: #555; text-align: center; margin: 0;">HOD / Dean Signature & Date</p></div>
+                </div>
+                <div style="border: 2px dashed #ccc; border-radius: 8px; height: 60px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 0.66rem; margin: 0 16px 16px 16px;">OFFICIAL STAMP / SEAL</div>
             </div>
         `;
     }).join('');
@@ -1731,39 +1856,30 @@ function printMasterPDF() {
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
             background: #f4f7fb;
-            padding: 30px;
+            padding: 24px;
             color: #1e2a3a;
-            font-size: 13px;
+            font-size: 11.5px;
         }
-        .report-container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        .report-header {
-            text-align: center;
-            border-bottom: 3px solid #0f5132;
-            margin-bottom: 25px;
-            padding-bottom: 12px;
-        }
-        .report-header h1 {
-            color: #0f5132;
-            font-size: 1.4rem;
-            margin-bottom: 4px;
-        }
-        .report-header p {
-            color: #5a6e7a;
-            font-size: 0.7rem;
-        }
-        .page-footer {
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 10px;
-            font-size: 0.65rem;
-            color: #aaa;
-            border-top: 1px solid #eee;
-        }
+        .report-container { max-width: 1000px; margin: 0 auto; }
+        .report-header { text-align: center; border-bottom: 3px solid #0f5132; margin-bottom: 20px; padding-bottom: 10px; }
+        .report-header h1 { color: #0f5132; font-size: 1.3rem; margin-bottom: 4px; }
+        .report-header p { color: #5a6e7a; font-size: 0.68rem; }
+        .sem-block { margin-bottom: 8px; page-break-inside: avoid; }
+        .sem-title { font-weight:bold; color:#0f5132; font-size:0.8rem; margin-bottom:4px; letter-spacing:0.4px; text-transform:uppercase; }
+        table { width:100%; border-collapse:collapse; }
+        thead tr { background:#0f5132; color:white; }
+        th { padding:6px 7px; text-align:left; font-size:0.68rem; letter-spacing:0.3px; }
+        td { border:1px solid #ddd; padding:5px 7px; font-size:0.72rem; }
+        .remark-pill { display:inline-block; padding:2px 7px; border-radius:10px; font-size:0.65rem; font-weight:bold; }
+        .sem-gpa-line { margin-top:4px; padding:5px 9px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.68rem; color:#14532d; }
+        .gpa-box { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px 16px; border:2px solid #0f5132; border-radius:10px; padding:11px 16px; margin-top:10px; background:#f0fdf4; page-break-inside: avoid; }
+        .gpa-item label { display:block; font-size:0.6rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; }
+        .gpa-item span { font-weight:bold; color:#0f5132; font-size:0.95rem; }
+        .key-box { max-width: 1000px; margin: 18px auto 0 auto; padding:10px 16px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:0.68rem; color:#14532d; }
+        .key-box strong { display:block; margin-bottom:3px; }
+        .page-footer { text-align: center; margin-top: 24px; padding-top: 8px; font-size: 0.62rem; color: #aaa; border-top: 1px solid #eee; }
         @media print {
-            body { background: white; padding: 15px; }
+            body { background: white; padding: 14px; }
             .student-record { break-inside: avoid; box-shadow: none; }
             .qr-container img { print-color-adjust: exact; }
         }
@@ -1776,6 +1892,14 @@ function printMasterPDF() {
         <p>OFFICIAL ACADEMIC TRANSCRIPT | Generated: ${new Date().toLocaleDateString()} | POWERED BY MU'UJIZA DATA</p>
     </div>
     ${studentBlocks}
+    <div class="key-box">
+        <strong>Nigerian NUC / NCCE Approved 5-Point Grading Scale:</strong>
+        A — 70+ (Excellent, GP=5) &nbsp;|&nbsp; B — 60–69 (Very Good, GP=4) &nbsp;|&nbsp; C — 50–59 (Good, GP=3) &nbsp;|&nbsp; D — 40–49 (Pass, GP=2) &nbsp;|&nbsp; F — Below 40 (Fail, GP=0)
+        <br><strong style="margin-top:5px;">Quality Point (QP) Explained:</strong>
+        QP = Grade Point (GP) × Course Credit Unit. It reflects the weighted academic value earned per course.
+        GPA = Total QP ÷ Total Credit Units for a semester. CGPA = Total QP (all semesters) ÷ Total Credit Units (all semesters).
+        <br>Distinction ≥ 3.50 &nbsp;|&nbsp; Upper Credit ≥ 3.00 &nbsp;|&nbsp; Lower Credit ≥ 2.00 &nbsp;|&nbsp; Pass ≥ 1.00 &nbsp;|&nbsp; Fail &lt; 1.00
+    </div>
     <div class="page-footer">
         BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} – QR codes are verifiable through the official portal.
     </div>
