@@ -501,7 +501,36 @@ async function fetchCarryoverExams() {
             return;
         }
 
-        listDiv.innerHTML = eligible.map(s => {
+        // ── Only show carryover courses that still have questions in the bank ──
+        // Each carryover course belongs to its original level+semester, so we
+        // check per-session using original_level and original_semester.
+        const coChecks = await Promise.all(eligible.map(async s => {
+            const course   = (s.carryover_course || '').toUpperCase().trim();
+            const origLvl  = s.original_level  || localData.level;
+            const origSem  = s.original_semester || localData.semester;
+            const { data } = await sb.from('questions').select('course', { count: 'exact', head: true })
+                .eq('department', localData.dept.toUpperCase().trim())
+                .eq('level',    origLvl)
+                .eq('semester', origSem)
+                .eq('course',   course);
+            // data will be null for a head query; use count from response — but
+            // head:true returns count in the response object. Check via non-head:
+            const { data: qRows } = await sb.from('questions').select('id')
+                .eq('department', localData.dept.toUpperCase().trim())
+                .eq('level',    origLvl)
+                .eq('semester', origSem)
+                .ilike('course', course)
+                .limit(1);
+            return { s, hasQuestions: !!(qRows && qRows.length > 0) };
+        }));
+        const eligibleWithQ = coChecks.filter(r => r.hasQuestions).map(r => r.s);
+
+        if (eligibleWithQ.length === 0) {
+            listDiv.innerHTML = '<p style="color:#a0aec0;">No carryover exams available right now.</p>';
+            return;
+        }
+
+        listDiv.innerHTML = eligibleWithQ.map(s => {
             const safeCourse = sanitise(s.carryover_course);
             return `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:15px; background:white; border-radius:8px; border-left:5px solid #ff9800;">
@@ -585,7 +614,23 @@ async function fetchCaExams() {
             return;
         }
 
-        listDiv.innerHTML = eligible.map(s => {
+        // ── Only show CA courses that still have questions in the bank ──────
+        // CA is a pre-exam test for the student's current dept + level + semester.
+        const caCodes = eligible.map(s => (s.course || '').toUpperCase().trim()).filter(Boolean);
+        const { data: caQData } = await sb.from('questions').select('course')
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level',      localData.level)
+            .eq('semester',   localData.semester)
+            .in('course',     caCodes);
+        const caHasQuestions = new Set((caQData || []).map(q => (q.course || '').toUpperCase().trim()));
+        const eligibleWithQ  = eligible.filter(s => caHasQuestions.has((s.course || '').toUpperCase().trim()));
+
+        if (eligibleWithQ.length === 0) {
+            listDiv.innerHTML = '<p style="color:#a0aec0;">No CA exams available right now.</p>';
+            return;
+        }
+
+        listDiv.innerHTML = eligibleWithQ.map(s => {
             const safeCourse = sanitise(s.course);
             return `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:15px; background:white; border-radius:8px; border-left:5px solid #3b82f6;">

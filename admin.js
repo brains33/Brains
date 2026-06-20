@@ -935,6 +935,12 @@ function loadAllStaticDropdowns() {
     document.getElementById('q_level').innerHTML = levelHTML;
     document.getElementById('bulk_semester').innerHTML = semHTML;
     document.getElementById('q_semester').innerHTML = semHTML;
+
+    // ── Question Library filter dropdowns ──────────────────────────────
+    const qfLevel = document.getElementById('qFilterLevel');
+    if (qfLevel) qfLevel.innerHTML = '<option value="">-- All Levels --</option>' + levelHTML;
+    const qfSem = document.getElementById('qFilterSemester');
+    if (qfSem) qfSem.innerHTML = '<option value="">-- All Semesters --</option>' + semHTML;
 }
 function updateBulkDepartments() { filterDeptLogic('bulk_faculty', 'bulk_dept'); }
 function updateSingleDepartments() { filterDeptLogic('q_faculty', 'q_dept'); }
@@ -955,6 +961,17 @@ async function loadList() {
     try {
         let query = sb.from('questions').select('*');
         if (searchTerm) query = query.or(`course.ilike.%${searchTerm}%,questions.ilike.%${searchTerm}%`);
+
+        // ── Apply filter dropdown values ───────────────────────────────
+        const qfFaculty  = document.getElementById('qFilterFaculty')?.value.trim().toUpperCase();
+        const qfDept     = document.getElementById('qFilterDept')?.value.trim().toUpperCase();
+        const qfLevel    = document.getElementById('qFilterLevel')?.value.trim();
+        const qfSemester = document.getElementById('qFilterSemester')?.value.trim();
+        if (qfFaculty)  query = query.ilike('faculty',    `%${qfFaculty}%`);
+        if (qfDept)     query = query.ilike('department', `%${qfDept}%`);
+        if (qfLevel)    query = query.eq('level',    qfLevel);
+        if (qfSemester) query = query.eq('semester', qfSemester);
+
         const { data, error } = await query.order('id', { ascending: false });
         if (error) throw error;
         window.allQuestions = data || [];
@@ -1944,6 +1961,133 @@ function triggerCSV(data, filename) {
     a.href = url; a.download = `${filename}.csv`; a.click();
 }
 
+
+// ── QUESTION LIBRARY EXPORT FUNCTIONS ────────────────────────────────
+
+/** Collect questions currently visible in the library (respects all active filters) */
+async function _getFilteredQuestions() {
+    const searchTerm = document.getElementById("qSearch")?.value.trim().toUpperCase() || "";
+    const qfFaculty  = document.getElementById('qFilterFaculty')?.value.trim().toUpperCase();
+    const qfDept     = document.getElementById('qFilterDept')?.value.trim().toUpperCase();
+    const qfLevel    = document.getElementById('qFilterLevel')?.value.trim();
+    const qfSemester = document.getElementById('qFilterSemester')?.value.trim();
+
+    let query = sb.from('questions').select('*');
+    if (searchTerm) query = query.or(`course.ilike.%${searchTerm}%,questions.ilike.%${searchTerm}%`);
+    if (qfFaculty)  query = query.ilike('faculty',    `%${qfFaculty}%`);
+    if (qfDept)     query = query.ilike('department', `%${qfDept}%`);
+    if (qfLevel)    query = query.eq('level',    qfLevel);
+    if (qfSemester) query = query.eq('semester', qfSemester);
+
+    const { data, error } = await query.order('id', { ascending: false });
+    if (error) throw error;
+    return data || [];
+}
+
+/** Export filtered questions as CSV (same column order as bulk upload) */
+async function exportQuestionsCSV() {
+    try {
+        const questions = await _getFilteredQuestions();
+        if (!questions.length) return alert("No questions to export. Apply a filter first.");
+
+        const headers = ["course", "questions", "Option 1", "Option 2", "Option 3", "Option 4", "answer", "faculty", "department", "level", "semester"];
+        const rows = questions.map(q =>
+            headers.map(h => `"${(q[h] ?? '').toString().replace(/"/g, '""')}"`).join(',')
+        );
+        const csv  = [headers.map(h => `"${h}"`).join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        // Build a descriptive filename from active filters
+        const faculty  = document.getElementById('qFilterFaculty')?.value || '';
+        const dept     = document.getElementById('qFilterDept')?.value || '';
+        const level    = document.getElementById('qFilterLevel')?.value || '';
+        const semester = document.getElementById('qFilterSemester')?.value || '';
+        const label    = [faculty, dept, level ? level+'L' : '', semester ? semester+'Sem' : ''].filter(Boolean).join('_') || 'All';
+        a.download = `Questions_${label}_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        alert("❌ Export failed: " + err.message);
+    }
+}
+
+/** Export filtered questions as a Word-compatible HTML document */
+async function exportQuestionsWord() {
+    try {
+        const questions = await _getFilteredQuestions();
+        if (!questions.length) return alert("No questions to export. Apply a filter first.");
+
+        const faculty  = document.getElementById('qFilterFaculty')?.value  || 'All Faculties';
+        const dept     = document.getElementById('qFilterDept')?.value     || 'All Departments';
+        const level    = document.getElementById('qFilterLevel')?.value    || '';
+        const semester = document.getElementById('qFilterSemester')?.value || '';
+
+        const heading = [faculty, dept, level ? level+'L' : '', semester ? semester+' Semester' : ''].filter(Boolean).join(' | ');
+
+        // Group questions by course code
+        const grouped = {};
+        for (const q of questions) {
+            const course = (q.course || 'UNKNOWN').toUpperCase().trim();
+            if (!grouped[course]) grouped[course] = [];
+            grouped[course].push(q);
+        }
+
+        let body = '';
+        for (const [course, qs] of Object.entries(grouped).sort()) {
+            body += `<h2 style="color:#0f5132;border-bottom:2px solid #0f5132;padding-bottom:4px;margin-top:30px;">${sanitise(course)}</h2>\n`;
+            qs.forEach((q, idx) => {
+                const ans = parseInt(q.answer);
+                body += `
+<p style="margin:12px 0 4px;"><strong>${idx + 1}.</strong> ${sanitise(q.questions || '')}</p>
+<p style="margin:2px 0 2px; padding-left:20px;">A. ${sanitise(q['Option 1'] || '')}</p>
+<p style="margin:2px 0 2px; padding-left:20px;">B. ${sanitise(q['Option 2'] || '')}</p>
+<p style="margin:2px 0 2px; padding-left:20px;">C. ${sanitise(q['Option 3'] || '')}</p>
+<p style="margin:2px 0 2px; padding-left:20px;">D. ${sanitise(q['Option 4'] || '')}</p>
+<p style="margin:2px 0 10px; color:#0f5132; font-size:0.9em;"><strong>Answer:</strong> ${['A','B','C','D'][ans - 1] || ans} &nbsp;|&nbsp; <em>Course: ${sanitise(q.course || '')}</em></p>
+<hr style="border:none;border-top:1px dashed #ccc;">
+`;
+            });
+        }
+
+        const html = `
+<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head>
+<meta charset="UTF-8">
+<title>Question Bank Export</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12pt; color: #111; margin: 40px; }
+  h1   { color: #0f5132; font-size: 16pt; text-align: center; }
+  h2   { font-size: 13pt; }
+  p    { font-size: 11pt; line-height: 1.6; }
+  hr   { margin: 6px 0; }
+  .meta { text-align:center; color:#555; font-size:10pt; margin-bottom:20px; }
+</style>
+</head>
+<body>
+<h1>BRAINS AI — Question Bank</h1>
+<p class="meta">${sanitise(heading)}<br>
+Generated: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })} &nbsp;|&nbsp; Total Questions: ${questions.length}</p>
+<hr style="border:2px solid #0f5132;">
+${body}
+</body></html>`;
+
+        // Download as .doc (Word opens HTML with this MIME + .doc extension)
+        const blob = new Blob([html], { type: 'application/msword' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        const label = [faculty !== 'All Faculties' ? faculty : '', dept !== 'All Departments' ? dept : '', level ? level+'L' : '', semester || ''].filter(Boolean).join('_') || 'All';
+        a.download = `Questions_${label}_${new Date().toISOString().slice(0,10)}.doc`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        alert("❌ Export failed: " + err.message);
+    }
+}
 
 // ── MARK ADJUSTMENT ──────────────────────────────────────────────────
 function populateMarkAdjustFaculty() {
