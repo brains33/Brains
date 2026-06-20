@@ -922,33 +922,6 @@ async function initQuestionPage() {
         window.allDepartments = dData || [];
         document.getElementById('bulk_faculty').innerHTML = '<option value="">-- Select Faculty --</option>' + window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
         document.getElementById('q_faculty').innerHTML = '<option value="">-- Select Faculty --</option>' + window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
-
-        // ── Question Library filter faculty dropdown ───────────────────
-        const qfFacEl = document.getElementById('qFilterFaculty');
-        if (qfFacEl) {
-            qfFacEl.innerHTML = '<option value="">-- All Faculties --</option>' +
-                window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
-            qfFacEl.addEventListener('change', () => {
-                const facName  = qfFacEl.value;
-                const deptSel  = document.getElementById('qFilterDept');
-                if (!deptSel) return;
-                if (!facName) {
-                    deptSel.innerHTML = '<option value="">-- All Departments --</option>';
-                } else {
-                    const facObj   = window.allFaculties.find(f => f.name === facName);
-                    const filtered = facObj ? window.allDepartments.filter(d => d.faculty_id === facObj.id) : [];
-                    deptSel.innerHTML = '<option value="">-- All Departments --</option>' +
-                        filtered.map(d => `<option value="${escapeAttr(d.name)}">${sanitise(d.name)}</option>`).join('');
-                }
-                loadList();
-            });
-        }
-        document.getElementById('qFilterDept')?.addEventListener('change', loadList);
-        document.getElementById('qFilterLevel')?.addEventListener('change', loadList);
-        document.getElementById('qFilterSemester')?.addEventListener('change', loadList);
-        document.getElementById('exportQuestionsCSVBtn')?.addEventListener('click', exportQuestionsCSV);
-        document.getElementById('exportQuestionsWordBtn')?.addEventListener('click', exportQuestionsWord);
-
         loadAllStaticDropdowns();
         loadList();
     } catch (err) {
@@ -987,7 +960,7 @@ async function loadList() {
     const searchTerm = document.getElementById("qSearch")?.value.trim().toUpperCase() || "";
     try {
         let query = sb.from('questions').select('*');
-        if (searchTerm) query = query.or(`course.ilike.%${searchTerm}%,questions.ilike.%${searchTerm}%`);
+        if (searchTerm) query = query.ilike('course', `%${searchTerm}%`);
 
         // ── Apply filter dropdown values ───────────────────────────────
         const qfFaculty  = document.getElementById('qFilterFaculty')?.value.trim().toUpperCase();
@@ -1089,7 +1062,7 @@ async function wipeAllQuestions() {
     if (prompt("Type 'DELETE' to confirm:") !== "DELETE") return alert("Wipe cancelled.");
 
     let query = sb.from('questions').select('id');
-    if (isFiltered) query = query.or(`course.ilike.%${searchTerm}%,questions.ilike.%${searchTerm}%`);
+    if (isFiltered) query = query.ilike('course', `%${searchTerm}%`);
     const { data: qList, error } = await query;
     if (error) return alert("Error: " + error.message);
     if (!qList || qList.length === 0) return alert("No questions found.");
@@ -1989,17 +1962,18 @@ function triggerCSV(data, filename) {
 }
 
 
-// ── QUESTION LIBRARY EXPORT ──────────────────────────────────────────
+// ── QUESTION LIBRARY EXPORT FUNCTIONS ────────────────────────────────
 
+/** Collect questions currently visible in the library (respects all active filters) */
 async function _getFilteredQuestions() {
     const searchTerm = document.getElementById("qSearch")?.value.trim().toUpperCase() || "";
-    const qfFaculty  = document.getElementById('qFilterFaculty')?.value.trim();
-    const qfDept     = document.getElementById('qFilterDept')?.value.trim();
+    const qfFaculty  = document.getElementById('qFilterFaculty')?.value.trim().toUpperCase();
+    const qfDept     = document.getElementById('qFilterDept')?.value.trim().toUpperCase();
     const qfLevel    = document.getElementById('qFilterLevel')?.value.trim();
     const qfSemester = document.getElementById('qFilterSemester')?.value.trim();
 
     let query = sb.from('questions').select('*');
-    if (searchTerm) query = query.or(`course.ilike.%${searchTerm}%,questions.ilike.%${searchTerm}%`);
+    if (searchTerm) query = query.ilike('course', `%${searchTerm}%`);
     if (qfFaculty)  query = query.ilike('faculty',    `%${qfFaculty}%`);
     if (qfDept)     query = query.ilike('department', `%${qfDept}%`);
     if (qfLevel)    query = query.eq('level',    qfLevel);
@@ -2010,12 +1984,13 @@ async function _getFilteredQuestions() {
     return data || [];
 }
 
+/** Export filtered questions as CSV (same column order as bulk upload) */
 async function exportQuestionsCSV() {
     try {
         const questions = await _getFilteredQuestions();
-        if (!questions.length) return alert("No questions to export. Apply a filter or search first.");
+        if (!questions.length) return alert("No questions to export. Apply a filter first.");
 
-        const headers = ["course","questions","Option 1","Option 2","Option 3","Option 4","answer","faculty","department","level","semester"];
+        const headers = ["course", "questions", "Option 1", "Option 2", "Option 3", "Option 4", "answer", "faculty", "department", "level", "semester"];
         const rows = questions.map(q =>
             headers.map(h => `"${(q[h] ?? '').toString().replace(/"/g, '""')}"`).join(',')
         );
@@ -2024,31 +1999,34 @@ async function exportQuestionsCSV() {
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
         a.href     = url;
+        // Build a descriptive filename from active filters
         const faculty  = document.getElementById('qFilterFaculty')?.value || '';
-        const dept     = document.getElementById('qFilterDept')?.value    || '';
-        const level    = document.getElementById('qFilterLevel')?.value   || '';
-        const semester = document.getElementById('qFilterSemester')?.value|| '';
+        const dept     = document.getElementById('qFilterDept')?.value || '';
+        const level    = document.getElementById('qFilterLevel')?.value || '';
+        const semester = document.getElementById('qFilterSemester')?.value || '';
         const label    = [faculty, dept, level ? level+'L' : '', semester ? semester+'Sem' : ''].filter(Boolean).join('_') || 'All';
         a.download = `Questions_${label}_${new Date().toISOString().slice(0,10)}.csv`;
         a.click();
         URL.revokeObjectURL(url);
     } catch (err) {
-        alert("❌ CSV Export failed: " + err.message);
+        alert("❌ Export failed: " + err.message);
     }
 }
 
+/** Export filtered questions as a Word-compatible HTML document */
 async function exportQuestionsWord() {
     try {
         const questions = await _getFilteredQuestions();
-        if (!questions.length) return alert("No questions to export. Apply a filter or search first.");
+        if (!questions.length) return alert("No questions to export. Apply a filter first.");
 
         const faculty  = document.getElementById('qFilterFaculty')?.value  || 'All Faculties';
         const dept     = document.getElementById('qFilterDept')?.value     || 'All Departments';
         const level    = document.getElementById('qFilterLevel')?.value    || '';
         const semester = document.getElementById('qFilterSemester')?.value || '';
-        const heading  = [faculty, dept, level ? level+'L' : '', semester ? semester+' Semester' : ''].filter(Boolean).join(' | ');
 
-        // Group by course code
+        const heading = [faculty, dept, level ? level+'L' : '', semester ? semester+' Semester' : ''].filter(Boolean).join(' | ');
+
+        // Group questions by course code
         const grouped = {};
         for (const q of questions) {
             const course = (q.course || 'UNKNOWN').toUpperCase().trim();
@@ -2056,42 +2034,48 @@ async function exportQuestionsWord() {
             grouped[course].push(q);
         }
 
-        const optionLetters = ['A','B','C','D'];
         let body = '';
         for (const [course, qs] of Object.entries(grouped).sort()) {
-            body += `<h2 style="color:#0f5132;border-bottom:2px solid #0f5132;padding-bottom:4px;margin-top:28px;font-size:13pt;">${course}</h2>\n`;
+            body += `<h2 style="color:#0f5132;border-bottom:2px solid #0f5132;padding-bottom:4px;margin-top:30px;">${sanitise(course)}</h2>\n`;
             qs.forEach((q, idx) => {
-                const ansIdx = parseInt(q.answer) - 1;
-                const ansLetter = optionLetters[ansIdx] ?? q.answer;
-                body += `<p style="margin:10px 0 3px;font-size:11pt;"><strong>${idx + 1}.</strong> ${q.questions || ''}</p>`;
-                body += `<p style="margin:1px 0;padding-left:20px;font-size:11pt;">A. ${q['Option 1'] || ''}</p>`;
-                body += `<p style="margin:1px 0;padding-left:20px;font-size:11pt;">B. ${q['Option 2'] || ''}</p>`;
-                body += `<p style="margin:1px 0;padding-left:20px;font-size:11pt;">C. ${q['Option 3'] || ''}</p>`;
-                body += `<p style="margin:1px 0;padding-left:20px;font-size:11pt;">D. ${q['Option 4'] || ''}</p>`;
-                body += `<p style="margin:1px 0 8px;font-size:10pt;color:#0f5132;"><strong>Answer: ${ansLetter}</strong> &nbsp;|&nbsp; Course: ${q.course || ''}</p>`;
-                body += `<hr style="border:none;border-top:1px dashed #ccc;margin:6px 0;">`;
+                const ans = parseInt(q.answer);
+                body += `
+<p style="margin:12px 0 4px;"><strong>${idx + 1}.</strong> ${sanitise(q.questions || '')}</p>
+<p style="margin:2px 0 2px; padding-left:20px;">A. ${sanitise(q['Option 1'] || '')}</p>
+<p style="margin:2px 0 2px; padding-left:20px;">B. ${sanitise(q['Option 2'] || '')}</p>
+<p style="margin:2px 0 2px; padding-left:20px;">C. ${sanitise(q['Option 3'] || '')}</p>
+<p style="margin:2px 0 2px; padding-left:20px;">D. ${sanitise(q['Option 4'] || '')}</p>
+<p style="margin:2px 0 10px; color:#0f5132; font-size:0.9em;"><strong>Answer:</strong> ${['A','B','C','D'][ans - 1] || ans} &nbsp;|&nbsp; <em>Course: ${sanitise(q.course || '')}</em></p>
+<hr style="border:none;border-top:1px dashed #ccc;">
+`;
             });
         }
 
-        const html = `<!DOCTYPE html>
+        const html = `
+<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
-<head><meta charset="UTF-8"><title>Question Bank Export</title>
+<head>
+<meta charset="UTF-8">
+<title>Question Bank Export</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
 <style>
-  body { font-family:Arial,sans-serif; font-size:12pt; color:#111; margin:40px; }
-  h1   { color:#0f5132; font-size:16pt; text-align:center; margin-bottom:4px; }
-  h2   { font-size:13pt; }
-  p    { line-height:1.6; margin:2px 0; }
-  .meta { text-align:center; color:#555; font-size:10pt; margin-bottom:16px; }
+  body { font-family: Arial, sans-serif; font-size: 12pt; color: #111; margin: 40px; }
+  h1   { color: #0f5132; font-size: 16pt; text-align: center; }
+  h2   { font-size: 13pt; }
+  p    { font-size: 11pt; line-height: 1.6; }
+  hr   { margin: 6px 0; }
+  .meta { text-align:center; color:#555; font-size:10pt; margin-bottom:20px; }
 </style>
 </head>
 <body>
-<h1>BRAINS AI — Question Bank Export</h1>
-<p class="meta">${heading}<br>Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})} &nbsp;|&nbsp; Total: ${questions.length} question(s)</p>
-<hr style="border:2px solid #0f5132;margin-bottom:10px;">
+<h1>BRAINS AI — Question Bank</h1>
+<p class="meta">${sanitise(heading)}<br>
+Generated: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })} &nbsp;|&nbsp; Total Questions: ${questions.length}</p>
+<hr style="border:2px solid #0f5132;">
 ${body}
 </body></html>`;
 
+        // Download as .doc (Word opens HTML with this MIME + .doc extension)
         const blob = new Blob([html], { type: 'application/msword' });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
@@ -2101,7 +2085,7 @@ ${body}
         a.click();
         URL.revokeObjectURL(url);
     } catch (err) {
-        alert("❌ Word Export failed: " + err.message);
+        alert("❌ Export failed: " + err.message);
     }
 }
 
