@@ -139,6 +139,19 @@ window.onload = async function() {
 
 // ── EVENT BINDING (ORIGINAL) ───────────────────────────────────────
 function bindDashboardEvents() {
+    document.getElementById('navCourseReg')?.addEventListener('click', () => {
+        // Hide main dashboard content, show registration panel
+        document.querySelector('.main-content').style.display = 'none';
+        document.getElementById('sec-courseReg').style.display = 'block';
+        loadCourseRegistration();
+    });
+
+    // Clicking Dashboard nav item restores main content
+    document.querySelector('.nav-item.active')?.addEventListener('click', () => {
+        document.querySelector('.main-content').style.display = '';
+        document.getElementById('sec-courseReg').style.display = 'none';
+    });
+
     document.getElementById('downloadResultsNav')?.addEventListener('click', downloadResultsPDF);
     document.getElementById('downloadExamCardNav')?.addEventListener('click', downloadExamCardPDF);
     document.getElementById('navAiLink')?.addEventListener('click', () => window.location.href = 'AI11.html');
@@ -215,6 +228,26 @@ async function fetchExams() {
     if (!localData) return;
 
     try {
+        // ── 1. Get student's registered courses for this semester ──────────
+        const { data: regData } = await sb
+            .from('course_registrations')
+            .select('course_code')
+            .eq('matrix_no', localData.matrix)
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester);
+
+        const registeredCourses = (regData || []).map(r => r.course_code.toUpperCase().trim());
+
+        if (registeredCourses.length === 0) {
+            listDiv.innerHTML = `<div style="background:#fff3cd; border-left:5px solid #ffc107;
+                padding:18px; border-radius:10px; color:#856404;">
+                ⚠️ <strong>You have not registered any courses yet.</strong><br>
+                Go to <em>Course Registration</em> in the sidebar to select your courses for this semester.
+            </div>`;
+            return;
+        }
+
         const { data: onlineResults } = await sb.from('results')
             .select('subject, course')
             .eq('matrix_no', localData.matrix);
@@ -232,12 +265,16 @@ async function fetchExams() {
             .eq('semester', localData.semester);
 
         if (error) throw error;
-        if (!exams || exams.length === 0) {
-            listDiv.innerHTML = "<p style='color:gray;'>No exams found for your department.</p>";
+
+        // Only show questions for registered courses
+        const allCourses = exams ? [...new Set(exams.map(e => e.course.toUpperCase().trim()))] : [];
+        const uniqueCourses = allCourses.filter(c => registeredCourses.includes(c));
+
+        if (uniqueCourses.length === 0) {
+            listDiv.innerHTML = "<p style='color:gray;'>No exam questions available yet for your registered courses.</p>";
             return;
         }
 
-        const uniqueCourses = [...new Set(exams.map(e => e.course.toUpperCase().trim()))];
         const { data: sessions } = await sb.from('exam_sessions')
             .select('course, token_code, is_active, end_time')
             .eq('department', localData.dept.toUpperCase().trim())
@@ -577,6 +614,22 @@ async function fetchCaExams() {
     if (!listDiv || !localData) return;
 
     try {
+        // ── Get registered courses first ───────────────────────────────────
+        const { data: regData } = await sb
+            .from('course_registrations')
+            .select('course_code')
+            .eq('matrix_no', localData.matrix)
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester);
+
+        const registeredCourses = (regData || []).map(r => r.course_code.toUpperCase().trim());
+
+        if (registeredCourses.length === 0) {
+            listDiv.innerHTML = '<p style="color:#a0aec0;">Complete course registration first to see CA exams.</p>';
+            return;
+        }
+
         const { data: sessions, error } = await sb
             .from('exam_sessions')
             .select('*')
@@ -606,7 +659,8 @@ async function fetchCaExams() {
         });
 
         const eligible = sessions.filter(s =>
-            !passedCourses.has((s.course || '').toUpperCase().trim())
+            !passedCourses.has((s.course || '').toUpperCase().trim()) &&
+            registeredCourses.includes((s.course || '').toUpperCase().trim())
         );
 
         if (eligible.length === 0) {
@@ -1150,12 +1204,11 @@ async function downloadExamCardPDF() {
     <tbody>${rows}</tbody>
   </table>
   
-  <!-- ========== SIGNATURES & STAMP (come AFTER the table) ========== -->
+  <!-- ========== SIGNATURES (come AFTER the table) ========== -->
   <div class="sign-section">
     <div class="sign-box"><div class="sign-line"></div><p>Exam Officer Signature &amp; Date</p></div>
     <div class="sign-box"><div class="sign-line"></div><p>HOD / Dean Signature &amp; Date</p></div>
   </div>
-  <div class="stamp-box">OFFICIAL STAMP / SEAL</div>
   
   <div class="footer">
     BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This card is non-transferable.
@@ -1286,7 +1339,6 @@ async function downloadScheduledExamCardPDF() {
     <div class="sign-box"><div class="sign-line"></div><p>Exam Officer Signature &amp; Date</p></div>
     <div class="sign-box"><div class="sign-line"></div><p>HOD / Dean Signature &amp; Date</p></div>
   </div>
-  <div class="stamp-box">OFFICIAL STAMP / SEAL</div>
   <div class="footer">
     BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp;
     This card is non-transferable and must be presented at every examination sitting.
@@ -1393,4 +1445,378 @@ async function deleteStudentAssignment(id) {
     const { error } = await sb.from('assignments').delete().eq('id', id);
     if (error) alert('Delete failed: ' + error.message);
     else loadMyAssignments();
+}
+
+// ── COURSE REGISTRATION ────────────────────────────────────────────────────
+
+const REG_MIN_UNITS = 15;
+const REG_MAX_UNITS = 24;
+
+async function loadCourseRegistration() {
+    const listDiv     = document.getElementById('regCourseList');
+    const unitBar     = document.getElementById('regUnitBar');
+    const actionArea  = document.getElementById('regActionArea');
+    const closedNote  = document.getElementById('regClosedNotice');
+    const msgEl       = document.getElementById('regMsg');
+
+    if (!listDiv || !localData) return;
+    listDiv.innerHTML = '<p style="color:#a0aec0;">Loading courses...</p>';
+    if (msgEl) msgEl.textContent = '';
+
+    // Reset shared carryover units tracker
+    window._regCarryoverUnits = 0;
+    window._regCarryoverCodes = [];
+
+    try {
+        // 1. Check if admin has opened registration for this group
+        const { data: control } = await sb
+            .from('registration_control')
+            .select('is_open')
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester)
+            .maybeSingle();
+
+        const isOpen = control ? control.is_open : false;
+
+        if (!isOpen) {
+            closedNote.style.display  = 'block';
+            unitBar.style.display     = 'none';
+            actionArea.style.display  = 'none';
+            listDiv.innerHTML = '';
+        } else {
+            closedNote.style.display = 'none';
+        }
+
+        // 2. Fetch student's active carryover sessions so they show first
+        //    Carryovers are mandatory to register first per institution policy.
+        const { data: coSessions } = await sb
+            .from('exam_sessions')
+            .select('carryover_course, original_level, original_semester')
+            .eq('is_carryover', true)
+            .eq('is_active', 'true')
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('original_level', localData.level)
+            .eq('original_semester', localData.semester);
+
+        // Also check which carryover courses student hasn't passed yet
+        const { data: results } = await sb
+            .from('results')
+            .select('subject, score')
+            .eq('matrix_no', localData.matrix);
+
+        const passedSet = new Set();
+        (results || []).forEach(r => {
+            if (parseFloat(r.score) >= 50)
+                passedSet.add((r.subject || '').toUpperCase().trim());
+        });
+
+        // Filter to only unpassed carryover courses, deduplicate
+        const coCodesRaw = [...new Set(
+            (coSessions || [])
+                .map(s => (s.carryover_course || '').toUpperCase().trim())
+                .filter(c => c && !passedSet.has(c))
+        )];
+
+        // Get credit units for carryover courses from catalog
+        // (use original level/semester — carryovers belong to past semesters)
+        let coCatalogMap = {};
+        if (coCodesRaw.length > 0) {
+            const { data: coCat } = await sb
+                .from('course_catalog')
+                .select('course_code, credit_units')
+                .in('course_code', coCodesRaw)
+                .eq('department', localData.dept.toUpperCase().trim());
+            (coCat || []).forEach(c => {
+                coCatalogMap[(c.course_code || '').toUpperCase().trim()] = parseInt(c.credit_units) || 3;
+            });
+        }
+
+        // Build carryover display — locked, pre-checked, counts toward total
+        let carryoverHTML = '';
+        if (coCodesRaw.length > 0) {
+            let coUnits = 0;
+            coCodesRaw.forEach(code => {
+                const units = coCatalogMap[code] || 3;
+                coUnits += units;
+                window._regCarryoverCodes.push({ course_code: code, units });
+            });
+            window._regCarryoverUnits = coUnits;
+
+            carryoverHTML = `
+            <div style="background:#fff3cd; border-left:5px solid #ff9800;
+                        border-radius:10px; padding:14px 18px; margin-bottom:16px;">
+                <p style="margin:0 0 10px 0; color:#856404; font-weight:bold; font-size:0.9rem;">
+                    ⚠️ You have carryover course(s) — these are automatically included and counted
+                    toward your unit total first, as required by institution policy.
+                </p>
+                ${coCodesRaw.map(code => {
+                    const units = coCatalogMap[code] || 3;
+                    return `
+                    <div style="display:flex; justify-content:space-between; align-items:center;
+                                padding:12px 14px; margin-bottom:8px; background:white; border-radius:8px;
+                                border-left:5px solid #ff9800; opacity:0.9;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="checkbox" checked disabled
+                                   style="width:18px; height:18px; accent-color:#ff9800;">
+                            <div>
+                                <strong style="color:#c05000;">${sanitise(code)}</strong>
+                                <small style="color:#856404; margin-left:8px;">Carryover — locked</small>
+                            </div>
+                        </div>
+                        <span style="background:#ff9800; color:white; font-weight:bold; font-size:0.85rem;
+                                     padding:4px 12px; border-radius:20px; white-space:nowrap;">
+                            ${units} unit${units !== 1 ? 's' : ''}
+                        </span>
+                    </div>`;
+                }).join('')}
+                <p style="margin:8px 0 0 0; color:#856404; font-size:0.85rem;">
+                    Carryover subtotal: <strong>${coUnits} unit${coUnits !== 1 ? 's' : ''}</strong>
+                    — remaining space: <strong>${REG_MAX_UNITS - coUnits} units</strong>
+                </p>
+            </div>`;
+        }
+
+        // 3. Load catalog courses for current semester
+        let catalogQuery = sb
+            .from('course_catalog')
+            .select('course_code, course_title, credit_units')
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester)
+            .order('course_code');
+
+        if (localData.faculty && localData.faculty !== 'Not Specified') {
+            catalogQuery = catalogQuery.eq('faculty', localData.faculty);
+        }
+
+        const { data: catalog, error: catErr } = await catalogQuery;
+        if (catErr) throw catErr;
+
+        if (!catalog || catalog.length === 0) {
+            listDiv.innerHTML = carryoverHTML +
+                '<p style="color:#a0aec0;">No courses found in catalog for your department/level/semester. Contact admin.</p>';
+            unitBar.style.display    = 'none';
+            actionArea.style.display = 'none';
+            return;
+        }
+
+        // 4. Load already-registered courses for pre-checking
+        const { data: existing } = await sb
+            .from('course_registrations')
+            .select('course_code')
+            .eq('matrix_no', localData.matrix)
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester);
+
+        const alreadyReg = new Set((existing || []).map(r => r.course_code.toUpperCase().trim()));
+
+        // 5. Render carryover block first, then current semester checkboxes
+        const catalogHTML = catalog.map(c => {
+            const code    = (c.course_code || '').toUpperCase().trim();
+            const title   = c.course_title || '';
+            const units   = parseInt(c.credit_units) || 3;
+            const checked = alreadyReg.has(code) ? 'checked' : '';
+            const disabled = !isOpen ? 'disabled' : '';
+            return `
+            <div class="reg-course-card" id="regCard_${code}"
+                 style="display:flex; justify-content:space-between; align-items:center;
+                        padding:14px 18px; margin-bottom:10px; background:white; border-radius:10px;
+                        border-left:5px solid ${alreadyReg.has(code) ? '#00ff88' : '#ddd'};
+                        box-shadow:0 2px 6px rgba(0,0,0,0.04); transition:all 0.2s;">
+                <label style="display:flex; align-items:center; gap:14px;
+                              cursor:${isOpen ? 'pointer' : 'default'}; flex:1;">
+                    <input type="checkbox" class="reg-checkbox"
+                           data-code="${code}" data-units="${units}"
+                           ${checked} ${disabled}
+                           style="width:18px; height:18px; accent-color:#00ff88;
+                                  cursor:${isOpen ? 'pointer' : 'default'};">
+                    <div>
+                        <strong style="color:#0f5132; font-size:1rem;">${sanitise(code)}</strong>
+                        ${title ? `<span style="color:#555; margin-left:8px; font-size:0.9rem;">${sanitise(title)}</span>` : ''}
+                    </div>
+                </label>
+                <span style="background:#0a3d25; color:#facc15; font-weight:bold; font-size:0.85rem;
+                             padding:4px 12px; border-radius:20px; white-space:nowrap; margin-left:10px;">
+                    ${units} unit${units !== 1 ? 's' : ''}
+                </span>
+            </div>`;
+        }).join('');
+
+        listDiv.innerHTML = carryoverHTML +
+            (coCodesRaw.length > 0
+                ? `<p style="color:#555; font-weight:bold; margin-bottom:12px;">
+                       📚 Current Semester Courses — select to add:
+                   </p>`
+                : '') +
+            catalogHTML;
+
+        // 6. Show unit bar and action area only if registration is open
+        if (isOpen) {
+            unitBar.style.display    = 'flex';
+            actionArea.style.display = 'block';
+            updateRegUnitCounter();
+
+            document.querySelectorAll('.reg-checkbox').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const code = cb.getAttribute('data-code');
+                    const card = document.getElementById(`regCard_${code}`);
+                    if (card) {
+                        card.style.borderLeftColor = cb.checked ? '#00ff88' : '#ddd';
+                        card.style.boxShadow = cb.checked
+                            ? '0 4px 12px rgba(0,255,136,0.15)'
+                            : '0 2px 6px rgba(0,0,0,0.04)';
+                    }
+                    updateRegUnitCounter();
+                });
+            });
+
+            document.getElementById('regSaveBtn').onclick = saveCourseRegistration;
+        } else {
+            unitBar.style.display    = 'none';
+            actionArea.style.display = 'none';
+        }
+
+    } catch (err) {
+        console.error('loadCourseRegistration error:', err);
+        listDiv.innerHTML = `<p style="color:red;">Error loading courses: ${sanitise(err.message)}</p>`;
+    }
+}
+
+function updateRegUnitCounter() {
+    const checkboxes = document.querySelectorAll('.reg-checkbox:checked');
+    const coBase = window._regCarryoverUnits || 0;
+    let selected = 0;
+    checkboxes.forEach(cb => { selected += parseInt(cb.getAttribute('data-units')) || 0; });
+    const total = coBase + selected;
+
+    const totalEl  = document.getElementById('regTotalUnits');
+    const statusEl = document.getElementById('regUnitStatus');
+    if (!totalEl || !statusEl) return;
+
+    totalEl.textContent = total;
+
+    // Show breakdown if there are carryover units
+    if (coBase > 0) {
+        totalEl.title = `Carryover: ${coBase} + Selected: ${selected}`;
+    }
+
+    if (total === 0) {
+        statusEl.textContent = 'No courses selected';
+        statusEl.style.background = '#555';
+    } else if (total < REG_MIN_UNITS) {
+        statusEl.textContent = `Below minimum (${REG_MIN_UNITS} units)`;
+        statusEl.style.background = '#ff4444';
+    } else if (total > REG_MAX_UNITS) {
+        statusEl.textContent = `Exceeds maximum (${REG_MAX_UNITS} units)!`;
+        statusEl.style.background = '#ff4444';
+    } else {
+        statusEl.textContent = `✅ Valid (${REG_MIN_UNITS}–${REG_MAX_UNITS} units)`;
+        statusEl.style.background = '#00a854';
+    }
+}
+
+async function saveCourseRegistration() {
+    const btn   = document.getElementById('regSaveBtn');
+    const msgEl = document.getElementById('regMsg');
+
+    // Carryover units + codes (set by loadCourseRegistration)
+    const coBase  = window._regCarryoverUnits || 0;
+    const coCodes = window._regCarryoverCodes || [];
+
+    const checkboxes = document.querySelectorAll('.reg-checkbox');
+    const selected = [];
+    let selectedUnits = 0;
+
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            selected.push({
+                course_code: cb.getAttribute('data-code'),
+                units: parseInt(cb.getAttribute('data-units')) || 0
+            });
+            selectedUnits += parseInt(cb.getAttribute('data-units')) || 0;
+        }
+    });
+
+    const totalUnits = coBase + selectedUnits;
+
+    // Hard block: exceeds max (carryover + selected combined)
+    if (totalUnits > REG_MAX_UNITS) {
+        msgEl.style.color = '#ff4444';
+        msgEl.textContent = `❌ Total units (${totalUnits}) exceed the maximum of ${REG_MAX_UNITS}.`
+            + (coBase > 0 ? ` Note: ${coBase} unit(s) are already taken by your carryover course(s).` : '')
+            + ` Please deselect some courses.`;
+        return;
+    }
+
+    // Soft warn: below minimum
+    if (totalUnits < REG_MIN_UNITS && (selected.length > 0 || coCodes.length > 0)) {
+        const proceed = confirm(
+            `⚠️ Total registered units (${totalUnits}) is below the minimum of ${REG_MIN_UNITS} units.\n\n`
+            + (coBase > 0 ? `Carryover: ${coBase} units + Selected: ${selectedUnits} units = ${totalUnits} units.\n\n` : '')
+            + `Do you want to save anyway?`
+        );
+        if (!proceed) return;
+    }
+
+    if (selected.length === 0 && coCodes.length === 0) {
+        msgEl.style.color = '#ff4444';
+        msgEl.textContent = '⚠️ Please select at least one course before saving.';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    msgEl.textContent = '';
+
+    try {
+        // Delete existing registrations for this student/semester first
+        await sb
+            .from('course_registrations')
+            .delete()
+            .eq('matrix_no', localData.matrix)
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester);
+
+        // Build rows: carryover courses first, then selected semester courses
+        const coRows = coCodes.map(c => ({
+            matrix_no:   localData.matrix,
+            course_code: c.course_code,
+            faculty:     localData.faculty || null,
+            department:  localData.dept.toUpperCase().trim(),
+            level:       localData.level,
+            semester:    localData.semester
+        }));
+
+        const semRows = selected.map(s => ({
+            matrix_no:   localData.matrix,
+            course_code: s.course_code,
+            faculty:     localData.faculty || null,
+            department:  localData.dept.toUpperCase().trim(),
+            level:       localData.level,
+            semester:    localData.semester
+        }));
+
+        const { error } = await sb.from('course_registrations').insert([...coRows, ...semRows]);
+        if (error) throw error;
+
+        const totalCount = coRows.length + semRows.length;
+        msgEl.style.color = '#00a854';
+        msgEl.textContent = `✅ Registration saved! ${totalCount} course(s) | ${totalUnits} units`
+            + (coBase > 0 ? ` (${coBase} carryover + ${selectedUnits} new)` : '')
+            + `. Your Available Exams will now reflect your registered courses.`;
+
+        // Refresh exam lists silently
+        fetchExams();
+        fetchCaExams();
+
+    } catch (err) {
+        msgEl.style.color = '#ff4444';
+        msgEl.textContent = '❌ Save failed: ' + err.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 SAVE COURSE REGISTRATION';
+    }
 }

@@ -80,6 +80,7 @@
 <a class="nav-link" data-section="markadjust" href="#"><i class="fas fa-pen-fancy"></i><span>Mark Adjust</span></a>
 <a class="nav-link" data-section="recyclebin"><i class="fas fa-recycle"></i><span>Recycle Bin</span></a>
 <a class="nav-link" data-section="catalog"><i class="fas fa-book"></i><span>Course Catalog</span></a>
+<a class="nav-link" data-section="registration"><i class="fas fa-clipboard-check"></i><span>Course Registration</span></a>
         <div class="nav-label">ACCOUNT</div>
         <a class="nav-link nav-logout" id="logoutLink"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
     </nav>
@@ -155,21 +156,58 @@
                 </div>
             </div>
 
-            <!-- Chart + Stats side by side -->
-            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:30px;">
-                <div style="flex:0 0 200px; max-height:220px;">
-                    <canvas id="dashboardChart"></canvas>
+            <!-- Three summary panels: CA / Exam / Total -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px;">
+
+                <!-- CA SUMMARY -->
+                <div style="background:#0a1f0f; border:1px solid #1a3a1f; border-radius:10px; padding:16px;">
+                    <h3 style="margin:0 0 12px 0; color:#4ade80; font-size:0.95rem;">📝 CA Summary <span style="color:#666; font-weight:normal; font-size:0.75rem;">(/30)</span></h3>
+                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px;">
+                        <div style="flex:0 0 140px; max-height:160px;">
+                            <canvas id="caChart"></canvas>
+                        </div>
+                        <div id="caStats" style="flex:1; min-width:140px; display:none; color:white; font-size:0.85rem; line-height:1.9;">
+                            <p><strong>Total CA Records:</strong> <span id="caStatTotal">—</span></p>
+                            <p>Average: <span id="caStatAvg">—</span>/30</p>
+                            <p>Lowest: <span id="caStatMin">—</span> &nbsp;|&nbsp; Highest: <span id="caStatMax">—</span></p>
+                        </div>
+                    </div>
+                    <p id="caChartNoData" style="color:#555; display:none; text-align:center; padding:14px 0; margin:0;">No CA results found.</p>
                 </div>
-                <div id="chartStats" style="flex:1; display:none; color:white; font-size:1rem; line-height:2;">
-                    <p><strong>Total Results:</strong> <span id="statTotal">—</span></p>
-                    <p style="color:#00ff88;"><strong>✅ Passed:</strong> <span id="statPassed">—</span>
-                        &nbsp;(Lowest: <span id="statPassMin">—</span>%, Highest: <span id="statPassMax">—</span>%)</p>
-                    <p style="color:#ff4444;"><strong>❌ Failed:</strong> <span id="statFailed">—</span>
-                        &nbsp;(Lowest: <span id="statFailMin">—</span>%, Highest: <span id="statFailMax">—</span>%)</p>
+
+                <!-- EXAM SUMMARY -->
+                <div style="background:#0a1f0f; border:1px solid #1a3a1f; border-radius:10px; padding:16px;">
+                    <h3 style="margin:0 0 12px 0; color:#00ff88; font-size:0.95rem;">📄 Exam Summary <span style="color:#666; font-weight:normal; font-size:0.75rem;">(/70)</span></h3>
+                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px;">
+                        <div style="flex:0 0 140px; max-height:160px;">
+                            <canvas id="examChart"></canvas>
+                        </div>
+                        <div id="examStats" style="flex:1; min-width:140px; display:none; color:white; font-size:0.85rem; line-height:1.9;">
+                            <p><strong>Total Exam Records:</strong> <span id="examStatTotal">—</span></p>
+                            <p>Average: <span id="examStatAvg">—</span>/70</p>
+                            <p>Lowest: <span id="examStatMin">—</span> &nbsp;|&nbsp; Highest: <span id="examStatMax">—</span></p>
+                        </div>
+                    </div>
+                    <p id="examChartNoData" style="color:#555; display:none; text-align:center; padding:14px 0; margin:0;">No Exam results found.</p>
                 </div>
-                <p id="chartNoData" style="color:#555; display:none; width:100%; text-align:center; padding:20px 0;">
-                    No results found for the selected filters.
-                </p>
+
+                <!-- TOTAL SUMMARY (CA + Exam combined, Pass/Fail) -->
+                <div style="background:#0a1f0f; border:1px solid #1a3a1f; border-radius:10px; padding:16px;">
+                    <h3 style="margin:0 0 12px 0; color:#facc15; font-size:0.95rem;">📊 Total Summary <span style="color:#666; font-weight:normal; font-size:0.75rem;">(/100, CA+Exam)</span></h3>
+                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px;">
+                        <div style="flex:0 0 140px; max-height:160px;">
+                            <canvas id="dashboardChart"></canvas>
+                        </div>
+                        <div id="chartStats" style="flex:1; min-width:140px; display:none; color:white; font-size:0.85rem; line-height:1.9;">
+                            <p><strong>Total:</strong> <span id="statTotal">—</span></p>
+                            <p style="color:#00ff88;"><strong>✅ Passed:</strong> <span id="statPassed">—</span></p>
+                            <p style="color:#ff4444;"><strong>❌ Failed:</strong> <span id="statFailed">—</span></p>
+                            <p style="font-size:0.78rem; color:#aaa;">Range: <span id="statPassMin">—</span>–<span id="statPassMax">—</span> (pass) &nbsp;|&nbsp; <span id="statFailMin">—</span>–<span id="statFailMax">—</span> (fail)</p>
+                        </div>
+                    </div>
+                    <p id="chartNoData" style="color:#555; display:none; text-align:center; padding:14px 0; margin:0;">No results found for the selected filters.</p>
+                </div>
+
             </div>
         </div>
     </div>
@@ -490,7 +528,7 @@
         <div class="section-header"><h1>Mark Adjustment</h1><p>Boost scores by faculty, department, level and semester</p></div>
         <div class="card" style="max-width:600px;">
             <h2>🎯 Bulk Mark Adjustment</h2>
-            <p style="opacity:0.8;margin-bottom:15px;">All matching results will be increased by the increment you specify, but <strong>no score will exceed 85%</strong>.</p>
+            <p style="opacity:0.8;margin-bottom:15px;">All matching results will be increased by the increment you specify. <strong>CA scores never exceed 25/30, Exam scores never exceed 55/70</strong> (max combined total: 80/100).</p>
 
             <label>Faculty</label>
             <select id="ma-faculty"><option value="">-- Loading Faculties... --</option></select>
@@ -501,12 +539,18 @@
             <label>Semester</label>
             <select id="ma-semester"><option value=""></option>
 </select>
+<label>Result Type</label>
+<select id="ma-type">
+    <option value="both">Both CA &amp; Exam</option>
+    <option value="ca">CA Only</option>
+    <option value="exam">Exam Only</option>
+</select>
 <label>Course Code (Optional – leave blank to adjust all courses in this group)</label>
 <input type="text" id="ma-course" placeholder="e.g. MLT200" style="text-transform:uppercase;">
-            <label>Score Threshold (students with score below this value)</label>
-            <input type="number" id="ma-threshold" placeholder="e.g. 34" min="0" max="85">
+            <label>Score Threshold (students with score below this value, on the CA/30 or Exam/70 scale)</label>
+            <input type="number" id="ma-threshold" placeholder="e.g. 15" min="0" max="70">
             <label>Score Increment (How many marks to add)</label>
-            <input type="number" id="ma-increment" placeholder="e.g. 25" min="1" max="85">
+            <input type="number" id="ma-increment" placeholder="e.g. 5" min="1" max="55">
 
             <button id="ma-applyBtn" style="width:100%; margin-top:15px; background:#6f42c1; color:white; font-weight:bold; padding:12px; border-radius:6px; border:none; cursor:pointer;">🚀 APPLY MARK ADJUSTMENT</button>
             <p id="ma-msg" style="text-align:center; margin-top:12px; font-weight:bold;"></p>
@@ -688,6 +732,72 @@
     </div>
 
 </div><!-- end admin-main -->
+
+<!-- ── COURSE REGISTRATION CONTROL SECTION ── -->
+<div id="sec-registration" class="admin-section">
+    <div class="section-header">
+        <h1>Course Registration Control</h1>
+        <p>Open or close registration per department, and view who has registered.</p>
+    </div>
+
+    <!-- Open/Close Control -->
+    <div style="background:#111; border-radius:12px; padding:20px; margin-bottom:24px;">
+        <h3 style="color:#00ff88; margin-top:0;">Open / Close Registration</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:14px;">
+            <select id="regCtrlFaculty" style="padding:10px; border-radius:8px; background:#1a1a1a; color:white; border:1px solid #333;">
+                <option value="">-- All Faculties --</option>
+            </select>
+            <select id="regCtrlDept" style="padding:10px; border-radius:8px; background:#1a1a1a; color:white; border:1px solid #333;">
+                <option value="">-- Select Faculty First --</option>
+            </select>
+            <select id="regCtrlLevel" style="padding:10px; border-radius:8px; background:#1a1a1a; color:white; border:1px solid #333;">
+                <option value="">-- Level --</option>
+                <option>100</option><option>200</option><option>300</option><option>400</option>
+            </select>
+            <select id="regCtrlSemester" style="padding:10px; border-radius:8px; background:#1a1a1a; color:white; border:1px solid #333;">
+                <option value="">-- Semester --</option>
+                <option>1st</option><option>2nd</option>
+            </select>
+        </div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button id="regOpenBtn" style="background:#00ff88; color:#062e1c; border:none; padding:11px 24px;
+                    border-radius:8px; font-weight:bold; cursor:pointer;">
+                ✅ OPEN Registration
+            </button>
+            <button id="regCloseBtn" style="background:#ff4444; color:white; border:none; padding:11px 24px;
+                    border-radius:8px; font-weight:bold; cursor:pointer;">
+                🔒 CLOSE Registration
+            </button>
+        </div>
+        <p id="regCtrlMsg" style="margin-top:12px; font-weight:bold;"></p>
+    </div>
+
+    <!-- View Registered Students -->
+    <div style="background:#111; border-radius:12px; padding:20px;">
+        <h3 style="color:#00ff88; margin-top:0;">View Registered Students</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:14px;">
+            <select id="regViewFaculty" style="padding:10px; border-radius:8px; background:#1a1a1a; color:white; border:1px solid #333;">
+                <option value="">-- All Faculties --</option>
+            </select>
+            <select id="regViewDept" style="padding:10px; border-radius:8px; background:#1a1a1a; color:white; border:1px solid #333;">
+                <option value="">-- Select Faculty First --</option>
+            </select>
+            <select id="regViewLevel" style="padding:10px; border-radius:8px; background:#1a1a1a; color:white; border:1px solid #333;">
+                <option value="">-- Level --</option>
+                <option>100</option><option>200</option><option>300</option><option>400</option>
+            </select>
+            <select id="regViewSemester" style="padding:10px; border-radius:8px; background:#1a1a1a; color:white; border:1px solid #333;">
+                <option value="">-- Semester --</option>
+                <option>1st</option><option>2nd</option>
+            </select>
+            <button id="regViewBtn" style="background:#0f5132; color:#00ff88; border:none; padding:10px 20px;
+                    border-radius:8px; font-weight:bold; cursor:pointer;">
+                🔍 Load
+            </button>
+        </div>
+        <div id="regViewList" style="color:#ccc;">Select filters and click Load to view registrations.</div>
+    </div>
+</div>
 
 <!-- Chart.js loaded here (after body) so CSP and DOM are both ready -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>

@@ -97,7 +97,8 @@ function showSection(name) {
         markadjust: 'Mark Adjustment',
         carryover: 'Carryover Exams',
         recyclebin: 'Recycle Bin',
-        catalog: 'Course Catalog'
+        catalog: 'Course Catalog',
+        registration: 'Course Registration'
     };
 
     document.getElementById('topbarTitle').textContent = titles[name] || 'BRAINS AI';
@@ -107,6 +108,9 @@ function showSection(name) {
 
     // Load course catalog when switching to that section
     if (name === 'catalog') loadCourseCatalog();
+
+    // Load registration control when switching to that section
+    if (name === 'registration') loadRegistrationSection();
 
     if (window.innerWidth < 900) closeSidebar();
 }
@@ -176,6 +180,31 @@ document.getElementById('fullProctorGrid')?.addEventListener('click', (e) => {
     document.getElementById('catFilterDept')?.addEventListener('change', loadCourseCatalog);
     document.getElementById('catFilterLevel')?.addEventListener('change', loadCourseCatalog);
     document.getElementById('catFilterSemester')?.addEventListener('change', loadCourseCatalog);
+
+    // Course Registration Control listeners
+    document.getElementById('regCtrlFaculty')?.addEventListener('change', () => {
+        const fac = document.getElementById('regCtrlFaculty').value;
+        const deptSel = document.getElementById('regCtrlDept');
+        deptSel.innerHTML = '<option value="">-- Select Faculty First --</option>';
+        if (fac && window._facDeptMap && window._facDeptMap[fac]) {
+            window._facDeptMap[fac].forEach(d => {
+                deptSel.innerHTML += `<option value="${d}">${d}</option>`;
+            });
+        }
+    });
+    document.getElementById('regViewFaculty')?.addEventListener('change', () => {
+        const fac = document.getElementById('regViewFaculty').value;
+        const deptSel = document.getElementById('regViewDept');
+        deptSel.innerHTML = '<option value="">-- Select Faculty First --</option>';
+        if (fac && window._facDeptMap && window._facDeptMap[fac]) {
+            window._facDeptMap[fac].forEach(d => {
+                deptSel.innerHTML += `<option value="${d}">${d}</option>`;
+            });
+        }
+    });
+    document.getElementById('regOpenBtn')?.addEventListener('click', () => setRegistrationStatus(true));
+    document.getElementById('regCloseBtn')?.addEventListener('click', () => setRegistrationStatus(false));
+    document.getElementById('regViewBtn')?.addEventListener('click', loadRegistrationView);
 
     document.getElementById('rbFaculty')?.addEventListener('change', updateRBFilterDepartments);
 document.getElementById('rbDept')?.addEventListener('change', loadRecycleBin);
@@ -1650,7 +1679,7 @@ function generateBrandedPDF(title, filteredData) {
         td { border: 1px solid #ddd; padding: 8px; font-size: 11px; }
         .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
         </style></head><body>
-        <div class="header"><h1>Barau Mu’azu Universal College of Health Science and Technology, Kontagora: ${safeValue(title)}</h1><p>OFFICIAL ACADEMIC RECORD | Generated: ${new Date().toLocaleDateString()}</p></div>
+        <div class="header"><h1>BRAINS ACADEMIC INTELLIGENCE: ${safeValue(title)}</h1><p>OFFICIAL ACADEMIC RECORD | Generated: ${new Date().toLocaleDateString()}</p></div>
         <table><thead><tr><th>S/N</th><th>NAME</th><th>ID</th><th>COURSE</th><th>SEM</th><th>SCORE</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="footer">POWERED BY MU'UJIZA DATA</div>
         </body></html>`);
@@ -1886,7 +1915,6 @@ async function printMasterPDF() {
                     <div style="border-top: 1px solid #999; padding-top: 7px;"><div style="height: 40px; border-bottom: 1px dashed #ccc; margin-bottom: 3px;"></div><p style="font-size: 0.66rem; color: #555; text-align: center; margin: 0;">Examiner Signature & Date</p></div>
                     <div style="border-top: 1px solid #999; padding-top: 7px;"><div style="height: 40px; border-bottom: 1px dashed #ccc; margin-bottom: 3px;"></div><p style="font-size: 0.66rem; color: #555; text-align: center; margin: 0;">HOD / Dean Signature & Date</p></div>
                 </div>
-                <div style="border: 2px dashed #ccc; border-radius: 8px; height: 60px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 0.66rem; margin: 0 16px 16px 16px;">OFFICIAL STAMP / SEAL</div>
             </div>
         `;
     }).join('');
@@ -1894,7 +1922,7 @@ async function printMasterPDF() {
     const printHTML = `<!DOCTYPE html>
 <html>
 <head>
-    <title>Master Record Transcript | Barau Mu’azu Universal College of Health Science and Technology, Kontagora</title>
+    <title>Master Record Transcript | BRAINS ACADEMIC INTELLIGENCE</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -1932,7 +1960,7 @@ async function printMasterPDF() {
 <body>
 <div class="report-container">
     <div class="report-header">
-        <h1>🎓Barau Mu’azu Universal College of Health Science and Technology, Kontagora – STUDENT MASTER RECORD</h1>
+        <h1>🎓BRAINS ACADEMIC INTELLIGENCE – STUDENT MASTER RECORD</h1>
         <p>OFFICIAL ACADEMIC TRANSCRIPT | Generated: ${new Date().toLocaleDateString()} | POWERED BY MU'UJIZA DATA</p>
     </div>
     ${studentBlocks}
@@ -2145,11 +2173,15 @@ async function applyMarkAdjustment() {
     const level     = document.getElementById('ma-level').value;
     const semester  = document.getElementById('ma-semester').value;
     const courseCode = document.getElementById('ma-course').value.trim().toUpperCase(); // optional
+    const resultType = document.getElementById('ma-type')?.value || 'both'; // 'ca' | 'exam' | 'both'
     const threshold = parseFloat(document.getElementById('ma-threshold').value);
     const increment = parseFloat(document.getElementById('ma-increment').value);
     const msg       = document.getElementById('ma-msg');
     const btn       = document.getElementById('ma-applyBtn');
-    const MAX_SCORE = 85;   // hard cap – scores will never exceed 85
+    // Adjustment caps are intentionally stricter than the normal entry maxes
+    // (CA 30 / Exam 70) so a boosted score can never exceed 80/100 total.
+    const CA_CAP    = 25;   // CA rows will never exceed 25 after adjustment
+    const EXAM_CAP  = 55;   // Exam rows will never exceed 55 after adjustment
 
     if (!faculty || !dept || !level || !semester || isNaN(threshold) || isNaN(increment) || increment <= 0) {
         msg.style.color = '#ff4444';
@@ -2157,7 +2189,13 @@ async function applyMarkAdjustment() {
         return;
     }
 
-    const confirmMsg = `Add ${increment} marks to ALL ${dept} ${level}L (${semester} Sem) students scoring BELOW ${threshold}? Scores already at or above ${MAX_SCORE} will NOT be changed.`;
+    const typeLabel = resultType === 'ca' ? 'CA' : resultType === 'exam' ? 'Exam' : 'CA & Exam';
+    const capLabel = resultType === 'ca'
+        ? `CA scores will be capped at ${CA_CAP}/30 after adjustment.`
+        : resultType === 'exam'
+        ? `Exam scores will be capped at ${EXAM_CAP}/70 after adjustment.`
+        : `CA scores will be capped at ${CA_CAP}/30 and Exam scores capped at ${EXAM_CAP}/70 after adjustment (max combined total: 80/100).`;
+    const confirmMsg = `Add ${increment} marks to ALL ${dept} ${level}L (${semester} Sem) ${typeLabel} scores BELOW ${threshold}?\n\n${capLabel}`;
     if (!confirm(confirmMsg)) return;
 
     btn.disabled = true;
@@ -2169,7 +2207,7 @@ async function applyMarkAdjustment() {
         // 1. Fetch all results matching the group (faculty can be NULL or match)
         let query = sb
     .from('results')
-    .select('id, score')
+    .select('id, score, is_ca')
     .or(`faculty.is.null,faculty.eq.${faculty}`)
     .eq('department', dept)
     .eq('level', level)
@@ -2178,6 +2216,13 @@ async function applyMarkAdjustment() {
 // Only filter by course if the admin typed a course code
 if (courseCode) {
     query = query.or(`subject.eq.${courseCode},course.eq.${courseCode}`);
+}
+
+// Restrict to CA-only or Exam-only rows if the admin chose a specific type
+if (resultType === 'ca') {
+    query = query.eq('is_ca', true);
+} else if (resultType === 'exam') {
+    query = query.eq('is_ca', false);
 }
 
 const { data: results, error } = await query;
@@ -2190,10 +2235,12 @@ const { data: results, error } = await query;
             return;
         }
 
-        // 2. Filter: only those below threshold AND below MAX_SCORE
+        // 2. Filter: only those below threshold AND below their type-specific cap
+        //    (CA rows are capped at CA_CAP/30, Exam rows at EXAM_CAP/70 — never mixed)
         const toUpdate = results.filter(r => {
+            const cap = r.is_ca ? CA_CAP : EXAM_CAP;
             const s = parseFloat(r.score);
-            return s < threshold && s < MAX_SCORE;
+            return s < threshold && s < cap;
         });
 
         if (toUpdate.length === 0) {
@@ -2204,11 +2251,12 @@ const { data: results, error } = await query;
             return;
         }
 
-        // 3. Update each row, capping at MAX_SCORE
+        // 3. Update each row, capping at the type-specific cap (CA vs Exam)
         let updatedCount = 0;
         for (const row of toUpdate) {
+            const cap = row.is_ca ? CA_CAP : EXAM_CAP;
             const current = parseFloat(row.score);
-            const newScore = Math.min(MAX_SCORE, current + increment);
+            const newScore = Math.min(cap, current + increment);
             const { error: updateErr } = await sb
                 .from('results')
                 .update({ score: newScore.toString() })
@@ -2217,7 +2265,12 @@ const { data: results, error } = await query;
         }
 
         msg.style.color = '#00ff88';
-        msg.innerText = `✅ Successfully updated ${updatedCount} of ${toUpdate.length} results. Scores capped at ${MAX_SCORE}%.`;
+        const successCapLabel = resultType === 'ca'
+            ? `CA capped at ${CA_CAP}/30.`
+            : resultType === 'exam'
+            ? `Exam capped at ${EXAM_CAP}/70.`
+            : `CA capped at ${CA_CAP}/30, Exam capped at ${EXAM_CAP}/70.`;
+        msg.innerText = `✅ Successfully updated ${updatedCount} of ${toUpdate.length} ${typeLabel} result(s). ${successCapLabel}`;
 
         // Refresh results if the results section is open
         if (typeof fetchFreshData === 'function') fetchFreshData();
@@ -2458,12 +2511,14 @@ async function forceLogoutCarryover() {
 }
 
 let dashboardChartInstance = null;
+let caChartInstance = null;
+let examChartInstance = null;
 
 async function renderDashboardChart() {
     const canvas = document.getElementById('dashboardChart');
     if (!canvas) return;
 
-    // Read filter values
+    // Read filter values (shared across all three panels)
     const selFaculty  = document.getElementById('chartFilterFaculty')?.value;
     const selDept     = document.getElementById('chartFilterDept')?.value;
     const selLevel    = document.getElementById('chartFilterLevel')?.value;
@@ -2483,15 +2538,150 @@ async function renderDashboardChart() {
     if (selSemester) filtered = filtered.filter(r => (r.semester || '').trim() === selSemester);
     if (selCourse)   filtered = filtered.filter(r => (r.subject || r.course || '').toUpperCase() === selCourse);
 
-    // ── Compute stats ──────────────────────────────────────────
-    const total   = filtered.length;
-    const passed  = filtered.filter(r => parseFloat(r.score) >= 50);
-    const failed  = filtered.filter(r => parseFloat(r.score) < 50);
+    renderCaPanel(filtered);
+    renderExamPanel(filtered);
+    renderTotalPanel(filtered);
+}
 
-    const passMin = passed.length ? Math.min(...passed.map(r => parseFloat(r.score))) : null;
-    const passMax = passed.length ? Math.max(...passed.map(r => parseFloat(r.score))) : null;
-    const failMin = failed.length ? Math.min(...failed.map(r => parseFloat(r.score))) : null;
-    const failMax = failed.length ? Math.max(...failed.map(r => parseFloat(r.score))) : null;
+// ── CA SUMMARY PANEL (score distribution, /30, no pass/fail) ─────────
+function renderCaPanel(filtered) {
+    const canvas = document.getElementById('caChart');
+    if (!canvas) return;
+    const caRows = filtered.filter(r => r.is_ca).map(r => parseFloat(r.score)).filter(s => !isNaN(s));
+
+    const statsDiv = document.getElementById('caStats');
+    const noData   = document.getElementById('caChartNoData');
+
+    if (caChartInstance) caChartInstance.destroy();
+
+    if (caRows.length === 0) {
+        canvas.parentElement.style.display = 'none';
+        if (statsDiv) statsDiv.style.display = 'none';
+        if (noData) noData.style.display = 'block';
+        return;
+    }
+    canvas.parentElement.style.display = 'flex';
+    if (noData) noData.style.display = 'none';
+
+    const low  = caRows.filter(s => s <= 14).length;   // 0–14
+    const mid  = caRows.filter(s => s >= 15 && s <= 22).length; // 15–22
+    const high = caRows.filter(s => s >= 23).length;   // 23–30
+
+    const avg = (caRows.reduce((a, b) => a + b, 0) / caRows.length).toFixed(1);
+    const min = Math.min(...caRows);
+    const max = Math.max(...caRows);
+
+    document.getElementById('caStatTotal').textContent = caRows.length;
+    document.getElementById('caStatAvg').textContent   = avg;
+    document.getElementById('caStatMin').textContent   = min;
+    document.getElementById('caStatMax').textContent   = max;
+    if (statsDiv) statsDiv.style.display = 'block';
+
+    const ctx = canvas.getContext('2d');
+    caChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['0–14', '15–22', '23–30'],
+            datasets: [{
+                data: [low, mid, high],
+                backgroundColor: ['#ff4444', '#facc15', '#4ade80'],
+                borderColor: ['#ff4444', '#facc15', '#4ade80'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+        }
+    });
+}
+
+// ── EXAM SUMMARY PANEL (score distribution, /70, no pass/fail) ───────
+function renderExamPanel(filtered) {
+    const canvas = document.getElementById('examChart');
+    if (!canvas) return;
+    const examRows = filtered.filter(r => !r.is_ca).map(r => parseFloat(r.score)).filter(s => !isNaN(s));
+
+    const statsDiv = document.getElementById('examStats');
+    const noData   = document.getElementById('examChartNoData');
+
+    if (examChartInstance) examChartInstance.destroy();
+
+    if (examRows.length === 0) {
+        canvas.parentElement.style.display = 'none';
+        if (statsDiv) statsDiv.style.display = 'none';
+        if (noData) noData.style.display = 'block';
+        return;
+    }
+    canvas.parentElement.style.display = 'flex';
+    if (noData) noData.style.display = 'none';
+
+    const low  = examRows.filter(s => s <= 34).length;  // 0–34
+    const mid  = examRows.filter(s => s >= 35 && s <= 52).length; // 35–52
+    const high = examRows.filter(s => s >= 53).length;  // 53–70
+
+    const avg = (examRows.reduce((a, b) => a + b, 0) / examRows.length).toFixed(1);
+    const min = Math.min(...examRows);
+    const max = Math.max(...examRows);
+
+    document.getElementById('examStatTotal').textContent = examRows.length;
+    document.getElementById('examStatAvg').textContent   = avg;
+    document.getElementById('examStatMin').textContent   = min;
+    document.getElementById('examStatMax').textContent   = max;
+    if (statsDiv) statsDiv.style.display = 'block';
+
+    const ctx = canvas.getContext('2d');
+    examChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['0–34', '35–52', '53–70'],
+            datasets: [{
+                data: [low, mid, high],
+                backgroundColor: ['#ff4444', '#facc15', '#4ade80'],
+                borderColor: ['#ff4444', '#facc15', '#4ade80'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+        }
+    });
+}
+
+// ── TOTAL SUMMARY PANEL (CA+Exam paired per student/course, /100, Pass/Fail @ 50) ──
+function renderTotalPanel(filtered) {
+    const canvas = document.getElementById('dashboardChart');
+    if (!canvas) return;
+
+    // Pair CA + Exam rows by matrix_no + course so the "total" is a real combined score,
+    // not a raw CA or Exam row compared against a 100-point scale.
+    const pairs = {};
+    filtered.forEach(r => {
+        const course = r.subject || r.course || 'N/A';
+        const key = `${r.matrix_no}__${course}`;
+        if (!pairs[key]) pairs[key] = { ca: null, exam: null };
+        if (r.is_ca) pairs[key].ca = r; else pairs[key].exam = r;
+    });
+
+    const totals = Object.values(pairs)
+        .filter(p => p.ca || p.exam) // at least one component present
+        .map(p => {
+            const caScore   = p.ca   ? Math.min(30, Math.round(parseFloat(p.ca.score)))   : 0;
+            const examScore = p.exam ? Math.min(70, Math.round(parseFloat(p.exam.score))) : 0;
+            return Math.min(100, caScore + examScore);
+        });
+
+    const total   = totals.length;
+    const passed  = totals.filter(s => s >= 50);
+    const failed  = totals.filter(s => s < 50);
+
+    const passMin = passed.length ? Math.min(...passed) : null;
+    const passMax = passed.length ? Math.max(...passed) : null;
+    const failMin = failed.length ? Math.min(...failed) : null;
+    const failMax = failed.length ? Math.max(...failed) : null;
 
     // ── Update text stats ──────────────────────────────────────
     const statsDiv = document.getElementById('chartStats');
@@ -2503,23 +2693,19 @@ async function renderDashboardChart() {
     document.getElementById('statFailMin').textContent  = failMin !== null ? failMin : '—';
     document.getElementById('statFailMax').textContent  = failMax !== null ? failMax : '—';
 
-    if (total > 0) {
-        statsDiv.style.display = 'block';
-    } else {
-        statsDiv.style.display = 'none';
-    }
-
     // ── Doughnut chart (pass vs fail) ──────────────────────────
     const ctx = canvas.getContext('2d');
     if (dashboardChartInstance) dashboardChartInstance.destroy();
 
     if (total === 0) {
         canvas.parentElement.style.display = 'none';
+        if (statsDiv) statsDiv.style.display = 'none';
         const noData = document.getElementById('chartNoData');
         if (noData) noData.style.display = 'block';
         return;
     }
-    canvas.parentElement.style.display = 'block';
+    canvas.parentElement.style.display = 'flex';
+    if (statsDiv) statsDiv.style.display = 'block';
     const noData = document.getElementById('chartNoData');
     if (noData) noData.style.display = 'none';
 
@@ -2537,9 +2723,7 @@ async function renderDashboardChart() {
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            plugins: {
-                legend: { position: 'bottom' }
-            }
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
         }
     });
 }
@@ -2829,4 +3013,113 @@ async function deleteCatalogEntry(id) {
     const { error } = await sb.from('course_catalog').delete().eq('id', id);
     if (error) { alert('❌ ' + error.message); return; }
     loadCourseCatalog();
+}
+
+// ── COURSE REGISTRATION CONTROL ──────────────────────────────────────────────
+
+function loadRegistrationSection() {
+    // Populate faculty dropdowns from the same _facDeptMap used elsewhere
+    const facMap = window._facDeptMap || {};
+    const faculties = Object.keys(facMap);
+
+    ['regCtrlFaculty', 'regViewFaculty'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.innerHTML = '<option value="">-- All Faculties --</option>' +
+            faculties.map(f => `<option value="${f}">${f}</option>`).join('');
+    });
+}
+
+async function setRegistrationStatus(isOpen) {
+    const dept     = document.getElementById('regCtrlDept')?.value.trim();
+    const level    = document.getElementById('regCtrlLevel')?.value.trim();
+    const semester = document.getElementById('regCtrlSemester')?.value.trim();
+    const msgEl    = document.getElementById('regCtrlMsg');
+
+    if (!dept || !level || !semester) {
+        msgEl.style.color = '#ff4444';
+        msgEl.textContent = '⚠️ Please select Department, Level, and Semester first.';
+        return;
+    }
+
+    const label = isOpen ? 'OPEN' : 'CLOSED';
+    if (!confirm(`Set registration to ${label} for ${dept} — ${level}L, ${semester} Semester?`)) return;
+
+    try {
+        const { error } = await sb.from('registration_control').upsert({
+            department: dept.toUpperCase().trim(),
+            level,
+            semester,
+            is_open: isOpen
+        }, { onConflict: 'department,level,semester' });
+
+        if (error) throw error;
+
+        msgEl.style.color = isOpen ? '#00ff88' : '#ff4444';
+        msgEl.textContent = `✅ Registration is now ${label} for ${dept} ${level}L (${semester} Semester).`;
+    } catch (err) {
+        msgEl.style.color = '#ff4444';
+        msgEl.textContent = '❌ ' + err.message;
+    }
+}
+
+async function loadRegistrationView() {
+    const dept     = document.getElementById('regViewDept')?.value.trim();
+    const level    = document.getElementById('regViewLevel')?.value.trim();
+    const semester = document.getElementById('regViewSemester')?.value.trim();
+    const container = document.getElementById('regViewList');
+
+    if (!dept || !level || !semester) {
+        container.innerHTML = '<p style="color:#ff4444;">⚠️ Please select Department, Level, and Semester.</p>';
+        return;
+    }
+
+    container.innerHTML = '<p style="color:#a0aec0;">Loading...</p>';
+
+    try {
+        const { data, error } = await sb
+            .from('course_registrations')
+            .select('matrix_no, course_code')
+            .eq('department', dept.toUpperCase().trim())
+            .eq('level', level)
+            .eq('semester', semester)
+            .order('matrix_no');
+
+        if (error) throw error;
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="color:#a0aec0;">No registrations found for this group yet.</p>';
+            return;
+        }
+
+        // Group by student
+        const byStudent = {};
+        data.forEach(r => {
+            if (!byStudent[r.matrix_no]) byStudent[r.matrix_no] = [];
+            byStudent[r.matrix_no].push(r.course_code);
+        });
+
+        const rows = Object.entries(byStudent).map(([matrix, courses], i) => `
+            <tr style="background:${i % 2 === 0 ? '#111' : '#0a0a0a'}; border-bottom:1px solid #222;">
+                <td style="padding:10px; color:#00ff88; font-weight:bold;">${sanitise(matrix)}</td>
+                <td style="padding:10px; color:#ccc;">${courses.map(c => sanitise(c)).join(', ')}</td>
+                <td style="padding:10px; text-align:center; color:#facc15;">${courses.length}</td>
+            </tr>`).join('');
+
+        container.innerHTML = `
+            <p style="color:#a0aec0; margin-bottom:10px;">
+                ${Object.keys(byStudent).length} student(s) registered | ${dept} ${level}L (${semester} Semester)
+            </p>
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <thead>
+                    <tr style="background:#0f5132; color:white; text-align:left;">
+                        <th style="padding:10px;">Matrix No.</th>
+                        <th style="padding:10px;">Registered Courses</th>
+                        <th style="padding:10px; text-align:center;">Count</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    } catch (err) {
+        container.innerHTML = `<p style="color:red;">Error: ${sanitise(err.message)}</p>`;
+    }
 }

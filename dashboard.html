@@ -35,6 +35,9 @@
         <div class="nav-item" id="navAssignments">
     <i class="fas fa-file-upload"></i> Assignments
 </div>
+        <div class="nav-item" id="navCourseReg">
+            <i class="fas fa-clipboard-list"></i> Course Registration
+        </div>
         <div class="nav-item" id="downloadResultsNav" style="display:none; cursor:pointer;">
             <i class="fas fa-file-pdf" style="color:#ff6b6b;"></i> Download Results
         </div>
@@ -230,6 +233,61 @@
             <div id="videoPlaceholder" style="color: #666; text-align: center; padding-top: 180px;">
                 Classroom will load here...
             </div>
+        </div>
+
+    </div>
+
+    <!-- ── COURSE REGISTRATION PANEL (hidden by default, toggled by nav) ── -->
+    <div id="sec-courseReg" style="display:none; margin-left:300px; padding:40px; width:calc(100% - 340px); box-sizing:border-box;">
+
+        <div class="section-card">
+            <h2 style="color:#0f5132; margin-top:0;">
+                <i class="fas fa-clipboard-list"></i> Course Registration
+            </h2>
+            <p style="color:#555; margin-bottom:0;">
+                Select the courses you want to take this semester. You must register
+                a minimum of <strong>15 units</strong> and cannot exceed <strong>24 units</strong>.
+            </p>
+        </div>
+
+        <!-- Registration closed notice (shown when admin closes registration) -->
+        <div id="regClosedNotice" style="display:none; background:#fff3cd; border-left:5px solid #ffc107;
+             padding:18px; border-radius:10px; margin-bottom:20px; color:#856404; font-weight:bold;">
+            ⚠️ Course registration is currently <strong>CLOSED</strong> for your department.
+            Please check back later or contact your department.
+        </div>
+
+        <!-- Credit unit live counter -->
+        <div id="regUnitBar" style="display:none; background:#0a3d25; color:white; padding:16px 20px;
+             border-radius:10px; margin-bottom:20px; display:flex; justify-content:space-between;
+             align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <span style="color:#a0aec0; font-size:0.8rem; text-transform:uppercase;">Total Selected Units</span><br>
+                <span id="regTotalUnits" style="font-size:2rem; font-weight:bold; color:#00ff88;">0</span>
+                <span style="color:#a0aec0;"> / 24 max</span>
+            </div>
+            <div id="regUnitStatus" style="font-size:0.9rem; padding:8px 16px; border-radius:20px;
+                 background:#ff4444; color:white; font-weight:bold;">
+                Below minimum (15 units)
+            </div>
+            <div style="color:#a0aec0; font-size:0.8rem; text-align:right;">
+                Min: <strong style="color:#facc15;">15</strong> &nbsp;|&nbsp;
+                Max: <strong style="color:#facc15;">24</strong>
+            </div>
+        </div>
+
+        <!-- Course list (checkboxes) -->
+        <div id="regCourseList" style="margin-bottom:20px;">
+            <p style="color:#a0aec0;">Loading available courses...</p>
+        </div>
+
+        <!-- Save button + message -->
+        <div id="regActionArea" style="display:none;">
+            <button id="regSaveBtn" style="background:#0f5132; color:#00ff88; border:none; padding:14px 30px;
+                    border-radius:10px; font-size:1rem; font-weight:bold; cursor:pointer; width:100%;">
+                💾 SAVE COURSE REGISTRATION
+            </button>
+            <p id="regMsg" style="text-align:center; margin-top:12px; font-weight:bold;"></p>
         </div>
 
     </div>
