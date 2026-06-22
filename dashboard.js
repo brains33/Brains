@@ -1771,59 +1771,38 @@ async function saveCourseRegistration() {
     msgEl.textContent = '';
 
     try {
-        const dept = localData.dept.toUpperCase().trim();
-
-        // ── DELETE ───────────────────────────────────────────────────────────
-        // The unique constraint is (matrix_no, course_code, department, level)
-        // — semester is NOT part of it. So we must delete ALL rows for this
-        // student/dept/level (not filtered by semester) to avoid stale rows
-        // from a previous semester surviving and causing a duplicate-key error.
-        const { error: delErr } = await sb
+        // Delete existing registrations for this student/semester first
+        await sb
             .from('course_registrations')
             .delete()
-            .eq('matrix_no',   localData.matrix)
-            .eq('department',  dept)
-            .eq('level',       localData.level);
+            .eq('matrix_no', localData.matrix)
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester);
 
-        if (delErr) throw new Error('Could not clear previous registration: ' + delErr.message);
-
-        // ── BUILD ROWS ────────────────────────────────────────────────────────
+        // Build rows: carryover courses first, then selected semester courses
         const coRows = coCodes.map(c => ({
             matrix_no:   localData.matrix,
-            course_code: (c.course_code || '').toUpperCase().trim(),
+            course_code: c.course_code,
             faculty:     localData.faculty || null,
-            department:  dept,
+            department:  localData.dept.toUpperCase().trim(),
             level:       localData.level,
             semester:    localData.semester
         }));
 
         const semRows = selected.map(s => ({
             matrix_no:   localData.matrix,
-            course_code: (s.course_code || '').toUpperCase().trim(),
+            course_code: s.course_code,
             faculty:     localData.faculty || null,
-            department:  dept,
+            department:  localData.dept.toUpperCase().trim(),
             level:       localData.level,
             semester:    localData.semester
         }));
 
-        // Deduplicate — guard against a carryover code also appearing in
-        // the semester catalog checkboxes (would cause a self-inflicted clash)
-        const seen = new Set();
-        const uniqueRows = [...coRows, ...semRows].filter(r => {
-            if (seen.has(r.course_code)) return false;
-            seen.add(r.course_code);
-            return true;
-        });
-
-        // ── UPSERT (not insert) ───────────────────────────────────────────────
-        // Using upsert as a safety net: if any row somehow survived the delete
-        // (e.g. RLS timing), it will be updated rather than rejected.
-        const { error } = await sb
-            .from('course_registrations')
-            .upsert(uniqueRows, { onConflict: 'matrix_no,course_code,department,level' });
+        const { error } = await sb.from('course_registrations').insert([...coRows, ...semRows]);
         if (error) throw error;
 
-        const totalCount = uniqueRows.length;
+        const totalCount = coRows.length + semRows.length;
         msgEl.style.color = '#00a854';
         msgEl.textContent = `✅ Registration saved! ${totalCount} course(s) | ${totalUnits} units`
             + (coBase > 0 ? ` (${coBase} carryover + ${selectedUnits} new)` : '')
