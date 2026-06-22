@@ -186,20 +186,30 @@ document.getElementById('fullProctorGrid')?.addEventListener('click', (e) => {
         const fac = document.getElementById('regCtrlFaculty').value;
         const deptSel = document.getElementById('regCtrlDept');
         deptSel.innerHTML = '<option value="">-- Select Faculty First --</option>';
-        if (fac && window._facDeptMap && window._facDeptMap[fac]) {
-            window._facDeptMap[fac].forEach(d => {
-                deptSel.innerHTML += `<option value="${d}">${d}</option>`;
-            });
+        if (fac && window.allFaculties && window.allDepartments) {
+            const facObj = window.allFaculties.find(f => f.name === fac);
+            if (facObj) {
+                window.allDepartments
+                    .filter(d => d.faculty_id === facObj.id)
+                    .forEach(d => {
+                        deptSel.innerHTML += `<option value="${escapeAttr(d.name)}">${sanitise(d.name)}</option>`;
+                    });
+            }
         }
     });
     document.getElementById('regViewFaculty')?.addEventListener('change', () => {
         const fac = document.getElementById('regViewFaculty').value;
         const deptSel = document.getElementById('regViewDept');
         deptSel.innerHTML = '<option value="">-- Select Faculty First --</option>';
-        if (fac && window._facDeptMap && window._facDeptMap[fac]) {
-            window._facDeptMap[fac].forEach(d => {
-                deptSel.innerHTML += `<option value="${d}">${d}</option>`;
-            });
+        if (fac && window.allFaculties && window.allDepartments) {
+            const facObj = window.allFaculties.find(f => f.name === fac);
+            if (facObj) {
+                window.allDepartments
+                    .filter(d => d.faculty_id === facObj.id)
+                    .forEach(d => {
+                        deptSel.innerHTML += `<option value="${escapeAttr(d.name)}">${sanitise(d.name)}</option>`;
+                    });
+            }
         }
     });
     document.getElementById('regOpenBtn')?.addEventListener('click', () => setRegistrationStatus(true));
@@ -3018,15 +3028,16 @@ async function deleteCatalogEntry(id) {
 // ── COURSE REGISTRATION CONTROL ──────────────────────────────────────────────
 
 function loadRegistrationSection() {
-    // Populate faculty dropdowns from the same _facDeptMap used elsewhere
-    const facMap = window._facDeptMap || {};
-    const faculties = Object.keys(facMap);
+    if (!window.allFaculties || !window.allDepartments) return;
+
+    const facOptions = '<option value="">-- All Faculties --</option>' +
+        window.allFaculties.map(f =>
+            `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`
+        ).join('');
 
     ['regCtrlFaculty', 'regViewFaculty'].forEach(id => {
         const el = document.getElementById(id);
-        if (!el) return;
-        el.innerHTML = '<option value="">-- All Faculties --</option>' +
-            faculties.map(f => `<option value="${f}">${f}</option>`).join('');
+        if (el) el.innerHTML = facOptions;
     });
 }
 
