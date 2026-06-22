@@ -1772,13 +1772,15 @@ async function saveCourseRegistration() {
 
     try {
         // Delete existing registrations for this student/semester first
-        await sb
+        const { error: delError } = await sb
             .from('course_registrations')
             .delete()
             .eq('matrix_no', localData.matrix)
             .eq('department', localData.dept.toUpperCase().trim())
             .eq('level', localData.level)
             .eq('semester', localData.semester);
+
+        if (delError) throw new Error('Could not clear previous registration: ' + delError.message);
 
         // Build rows: carryover courses first, then selected semester courses
         const coRows = coCodes.map(c => ({
@@ -1799,7 +1801,15 @@ async function saveCourseRegistration() {
             semester:    localData.semester
         }));
 
-        const { error } = await sb.from('course_registrations').insert([...coRows, ...semRows]);
+        const allRows = [...coRows, ...semRows];
+
+        // Use upsert with onConflict to safely handle any residual duplicates
+        const { error } = await sb
+            .from('course_registrations')
+            .upsert(allRows, {
+                onConflict: 'matrix_no,course_code,department,level,semester',
+                ignoreDuplicates: false
+            });
         if (error) throw error;
 
         const totalCount = coRows.length + semRows.length;
