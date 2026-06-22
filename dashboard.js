@@ -122,6 +122,7 @@ window.onload = async function() {
         setInterval(checkExamCardReleased, 30000);
         setInterval(checkScheduledExamCardReleased, 30000);
         setInterval(fetchCaExams, 30000);
+        setInterval(fetchCarryoverExams, 30000);
         syncClassroom();
         setInterval(syncClassroom, 60000);
         checkForLiveClass();
@@ -499,6 +500,17 @@ async function fetchCarryoverExams() {
     if (!listDiv || !localData) return;
 
     try {
+        // ── Gate: only compute eligibility once results are officially released ──
+        const { data: releasedData } = await sb.rpc('is_results_released', {
+            p_dept:     localData.dept.trim().toUpperCase(),
+            p_level:    localData.level,
+            p_semester: localData.semester
+        });
+        if (releasedData !== true) {
+            listDiv.innerHTML = '<p style="color:#a0aec0;">Carryover status will be shown once results are officially released.</p>';
+            return;
+        }
+
         const { data: sessions, error } = await sb
             .from('exam_sessions')
             .select('*')
