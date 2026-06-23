@@ -1677,11 +1677,22 @@ async function setSlipRelease(released) {
     if (!confirm(`${released ? '⚠️' : '🚨'} ${action} for:\n\n📄 ${label}\n\n${released ? 'Students will be able to download their semester result slip.' : 'Students will no longer see the semester result slip.'}`)) return;
     const key = `SLIP_${dept.trim().toUpperCase()}_${level}_${semester}`;
     try {
+        // 1. Keep writing to admin_settings (legacy / backup)
         const { data: row } = await sb.from('admin_settings').select('results_config').eq('id', 1).maybeSingle();
         const config = (row && row.results_config) ? row.results_config : {};
         config[key] = released;
-        const { error } = await sb.from('admin_settings').upsert({ id: 1, results_config: config }, { onConflict: 'id' });
-        if (error) throw error;
+        await sb.from('admin_settings').upsert({ id: 1, results_config: config }, { onConflict: 'id' });
+
+        // 2. ALSO write slip_released to registration_control so students
+        //    can read it without hitting RLS on admin_settings.
+        const { error: rcErr } = await sb.from('registration_control').upsert({
+            department:    dept.trim().toUpperCase(),
+            level,
+            semester,
+            slip_released: released
+        }, { onConflict: 'department,level,semester' });
+        if (rcErr) throw rcErr;
+
         const msg = document.getElementById('releaseSlipMsg');
         if (msg) {
             msg.style.color   = released ? "#00ff88" : "#ff4444";

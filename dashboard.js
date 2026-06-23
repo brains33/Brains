@@ -865,17 +865,18 @@ async function checkResultsReleased() {
         if (tn) tn.style.display = 'none';
     }
 
-    // ── Semester slip: independent check via admin_settings SLIP_ key ──
-    // Kept separate so a transcript RPC failure never hides the slip.
+    // ── Semester slip: read slip_released from registration_control ──
+    // Uses registration_control (already student-readable) to avoid RLS
+    // blocking on admin_settings. Admin writes slip_released=true/false there.
     try {
-        const slipKey = `SLIP_${localData.dept.trim().toUpperCase()}_${localData.level}_${localData.semester}`;
-        const { data: settingsRow } = await sb
-            .from('admin_settings')
-            .select('results_config')
-            .eq('id', 1)
+        const { data: slipRow } = await sb
+            .from('registration_control')
+            .select('slip_released')
+            .eq('department', localData.dept.trim().toUpperCase())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester)
             .maybeSingle();
-        const config   = (settingsRow && settingsRow.results_config) ? settingsRow.results_config : {};
-        const slipOpen = config[slipKey] === true;
+        const slipOpen = slipRow && slipRow.slip_released === true;
         const slipNav  = document.getElementById('downloadSlipNav');
         if (slipNav) slipNav.style.display = slipOpen ? 'flex' : 'none';
     } catch (e) {
