@@ -153,6 +153,7 @@ function bindDashboardEvents() {
         document.getElementById('sec-courseReg').style.display = 'none';
     });
 
+    document.getElementById('downloadSlipNav')?.addEventListener('click', downloadSemesterSlipPDF);
     document.getElementById('downloadResultsNav')?.addEventListener('click', downloadResultsPDF);
     document.getElementById('downloadExamCardNav')?.addEventListener('click', downloadExamCardPDF);
     document.getElementById('navAiLink')?.addEventListener('click', () => window.location.href = 'AI11.html');
@@ -849,18 +850,33 @@ async function joinClass() {
 async function checkResultsReleased() {
     if (!localData) return;
     try {
-        const { data, error } = await sb.rpc('is_results_released', {
-            p_dept: localData.dept.trim().toUpperCase(),
-            p_level: localData.level,
+        // ── Full transcript: uses existing is_results_released RPC ──
+        const { data: transcriptData } = await sb.rpc('is_results_released', {
+            p_dept:     localData.dept.trim().toUpperCase(),
+            p_level:    localData.level,
             p_semester: localData.semester
         });
-        const navBtn = document.getElementById('downloadResultsNav');
-        if (!navBtn) return;
-        const isReleased = data === true;
-        navBtn.style.display = isReleased ? 'flex' : 'none';
-    } catch (e) { 
+        const transcriptNav = document.getElementById('downloadResultsNav');
+        if (transcriptNav) transcriptNav.style.display = transcriptData === true ? 'flex' : 'none';
+
+        // ── Semester slip: reads SLIP_ key directly from admin_settings ──
+        const slipKey = `SLIP_${localData.dept.trim().toUpperCase()}_${localData.level}_${localData.semester}`;
+        const { data: settingsRow } = await sb
+            .from('admin_settings')
+            .select('results_config')
+            .eq('id', 1)
+            .maybeSingle();
+        const config   = (settingsRow && settingsRow.results_config) ? settingsRow.results_config : {};
+        const slipOpen = config[slipKey] === true;
+        const slipNav  = document.getElementById('downloadSlipNav');
+        if (slipNav) slipNav.style.display = slipOpen ? 'flex' : 'none';
+
+    } catch (e) {
         console.error("Error checking results release status:", e);
-        document.getElementById('downloadResultsNav').style.display = 'none';
+        const sn = document.getElementById('downloadSlipNav');
+        const tn = document.getElementById('downloadResultsNav');
+        if (sn) sn.style.display = 'none';
+        if (tn) tn.style.display = 'none';
     }
 }
 
@@ -1086,6 +1102,117 @@ async function downloadResultsPDF() {
 </body></html>`;
     const printWindow = window.open('', '_blank');
     printWindow.document.write(printHTML);
+    printWindow.document.close();
+    printWindow.onload = () => printWindow.print();
+}
+
+// ── SEMESTER RESULT SLIP (current semester only, HOD signature line) ──
+async function downloadSemesterSlipPDF() {
+    if (!localData) return alert("Student data not loaded.");
+
+    // Fetch only this semester's results
+    const { data: results, error } = await sb.from('results')
+        .select('*')
+        .eq('matrix_no', localData.matrix)
+        .eq('semester', localData.semester)
+        .eq('level', localData.level)
+        .order('created_at', { ascending: true });
+
+    if (error || !results || results.length === 0)
+        return alert("No results found for this semester yet.");
+
+    // Get credit units from catalog
+    const courseKeys = [...new Set(results.map(r => (r.subject || r.course || 'N/A').toUpperCase()))];
+    let catalogMap = {};
+    try {
+        const { data: catalog } = await sb.from('course_catalog')
+            .select('course_code, credit_units')
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .in('course_code', courseKeys);
+        if (catalog) catalog.forEach(c => {
+            catalogMap[c.course_code.toUpperCase()] = c.credit_units;
+        });
+    } catch (e) { /* fallback to 3 units */ }
+
+    // Build courseMap for this semester only
+    const courseMap = {};
+    for (const r of results) {
+        const key = (r.subject || r.course || 'N/A').toUpperCase();
+        if (!courseMap[key]) courseMap[key] = { exam: null, ca: null };
+        if (r.is_ca) courseMap[key].ca   = r;
+        else         courseMap[key].exam = r;
+    }
+
+    const { html: semBlock, totalUnits, totalQP, gpa } = buildSemesterTableHTML(
+        localData.semester, courseMap, catalogMap
+    );
+    const gpaColor = !gpa ? '#555' : parseFloat(gpa) >= 3.5 ? '#0f5132' : parseFloat(gpa) >= 2.0 ? '#b45309' : '#cc0000';
+
+    const slipHTML = `<!DOCTYPE html>
+<html><head><title>${localData.semester} Semester Result Slip — ${localData.name}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, sans-serif; padding: 28px; color: #111; font-size: 11.5px; }
+  .header { text-align:center; border-bottom: 3px solid #0f5132; padding-bottom:14px; margin-bottom:18px; }
+  .header h1 { color:#0f5132; font-size:1.2rem; margin-bottom:3px; }
+  .header h2 { color:#333; font-size:0.95rem; font-weight:normal; }
+  .header p  { color:#888; font-size:0.72rem; margin-top:4px; }
+  .info-box  { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px 24px; border:1px solid #ccc; border-radius:8px; padding:12px 16px; margin-bottom:18px; background:#f9fdfb; }
+  .info-item label { display:block; font-size:0.62rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; }
+  .info-item span  { font-weight:bold; color:#0f5132; font-size:0.88rem; }
+  .sem-block { margin-bottom:14px; }
+  .sem-title { font-weight:bold; color:#0f5132; font-size:0.85rem; margin-bottom:6px; letter-spacing:0.4px; text-transform:uppercase; }
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:#0f5132; color:white; }
+  th { padding:7px 9px; text-align:left; font-size:0.72rem; letter-spacing:0.3px; }
+  td { border:1px solid #ddd; padding:6px 9px; font-size:0.78rem; }
+  .remark-pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.68rem; font-weight:bold; }
+  .sem-gpa-line { margin-top:6px; padding:7px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.75rem; color:#14532d; }
+  .key-box { margin-top:14px; padding:9px 13px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:0.7rem; color:#14532d; }
+  .key-box strong { display:block; margin-bottom:3px; }
+  .sig-section { margin-top:36px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+  .sig-box { border-top:1px solid #333; padding-top:8px; text-align:center; font-size:0.72rem; color:#555; }
+  .sig-box strong { display:block; color:#111; margin-top:2px; }
+  .footer { margin-top:20px; text-align:center; font-size:0.65rem; color:#aaa; border-top:1px solid #eee; padding-top:8px; }
+  @media print { body { padding:16px; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎓 BRAINS AI — SEMESTER RESULT SLIP</h1>
+    <h2>${localData.semester} Semester Academic Results — ${localData.level}L</h2>
+    <p>POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString('en-NG', {day:'2-digit', month:'long', year:'numeric'})}</p>
+  </div>
+  <div class="info-box">
+    <div class="info-item"><label>Full Name</label><span>${localData.name}</span></div>
+    <div class="info-item"><label>Matrix Number</label><span>${localData.matrix}</span></div>
+    <div class="info-item"><label>Department</label><span>${localData.dept}</span></div>
+    <div class="info-item"><label>Faculty</label><span>${localData.faculty || 'N/A'}</span></div>
+    <div class="info-item"><label>Level</label><span>${localData.level}L</span></div>
+    <div class="info-item"><label>Semester</label><span>${localData.semester} Semester</span></div>
+  </div>
+  ${semBlock}
+  <div class="key-box">
+    <strong>Approved Grading Scale (NUC / NCCE):</strong>
+    A (≥70) — Excellent &nbsp;|&nbsp; B (60–69) — Very Good &nbsp;|&nbsp; C (50–59) — Good &nbsp;|&nbsp; D (40–49) — Pass &nbsp;|&nbsp; F (&lt;40) — Fail
+  </div>
+  <div class="sig-section">
+    <div class="sig-box">
+        &nbsp;<br><strong>Student Signature</strong>Name: ${localData.name}
+    </div>
+    <div class="sig-box">
+        &nbsp;<br><strong>Head of Department</strong>Signature &amp; Stamp
+    </div>
+    <div class="sig-box">
+        &nbsp;<br><strong>Dean / Registrar</strong>Signature &amp; Stamp
+    </div>
+  </div>
+  <div class="footer">BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This slip is auto-generated and subject to ratification.</div>
+</body></html>`;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(slipHTML);
     printWindow.document.close();
     printWindow.onload = () => printWindow.print();
 }
@@ -1502,7 +1629,20 @@ async function loadCourseRegistration() {
 
         // 2. Fetch student's active carryover sessions so they show first
         //    Carryovers are mandatory to register first per institution policy.
-        const { data: coSessions } = await sb
+        //    BUT only show them once results are officially released — otherwise
+        //    a student who just submitted sees their score and carryover status
+        //    before admin has formally released results.
+        const { data: slipReleased } = await sb.rpc('is_results_released', {
+            p_dept:     localData.dept.trim().toUpperCase(),
+            p_level:    localData.level,
+            p_semester: localData.semester
+        }).catch(() => ({ data: false }));
+
+        const coCodesRaw = [];
+        let coCatalogMap = {};
+
+        if (slipReleased === true) {
+            const { data: coSessions } = await sb
             .from('exam_sessions')
             .select('carryover_course, original_level, original_semester')
             .eq('is_carryover', true)
@@ -1512,27 +1652,26 @@ async function loadCourseRegistration() {
             .eq('original_semester', localData.semester);
 
         // Also check which carryover courses student hasn't passed yet
-        const { data: results } = await sb
+        const { data: coResultsData } = await sb
             .from('results')
             .select('subject, score')
             .eq('matrix_no', localData.matrix);
 
         const passedSet = new Set();
-        (results || []).forEach(r => {
+        (coResultsData || []).forEach(r => {
             if (parseFloat(r.score) >= 50)
                 passedSet.add((r.subject || '').toUpperCase().trim());
         });
 
-        // Filter to only unpassed carryover courses, deduplicate
-        const coCodesRaw = [...new Set(
+        // Filter to only unpassed carryover courses, deduplicate, push into outer array
+        const rawFiltered = [...new Set(
             (coSessions || [])
                 .map(s => (s.carryover_course || '').toUpperCase().trim())
                 .filter(c => c && !passedSet.has(c))
         )];
+        coCodesRaw.push(...rawFiltered);
 
         // Get credit units for carryover courses from catalog
-        // (use original level/semester — carryovers belong to past semesters)
-        let coCatalogMap = {};
         if (coCodesRaw.length > 0) {
             const { data: coCat } = await sb
                 .from('course_catalog')
@@ -1543,6 +1682,7 @@ async function loadCourseRegistration() {
                 coCatalogMap[(c.course_code || '').toUpperCase().trim()] = parseInt(c.credit_units) || 3;
             });
         }
+        } // end if (slipReleased)
 
         // Build carryover display — locked, pre-checked, counts toward total
         let carryoverHTML = '';

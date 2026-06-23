@@ -448,10 +448,12 @@
 
     <!-- RELEASE RESULTS -->
     <div id="sec-release" class="admin-section">
-        <div class="section-header"><h1>Release Results</h1><p>Control which group can download their result PDF</p></div>
-        <div class="card" style="max-width:540px;">
-            <h2>Result Release Control</h2>
-            <p style="opacity:0.8;font-size:0.9em;margin-bottom:15px;">Select the target group then release or hide their results.</p>
+        <div class="section-header"><h1>Release Results</h1><p>Control what students can download — release semester slip first, full transcript after senate approval</p></div>
+
+        <!-- Shared filters — used by both release panels below -->
+        <div class="card" style="max-width:600px; margin-bottom:20px;">
+            <h2>Select Target Group</h2>
+            <p style="opacity:0.8;font-size:0.9em;margin-bottom:15px;">Choose the faculty, department, level and semester before releasing either document.</p>
             <label>Faculty</label>
             <select id="releaseFaculty" style="background:#0f5132;color:white;font-weight:bold;border:none;"><option value="">-- Select Faculty --</option></select>
             <label>Department</label>
@@ -460,13 +462,37 @@
             <select id="releaseLevel" style="background:#0f5132;color:white;font-weight:bold;border:none;"><option value="">-- Choose Level --</option></select>
             <label>Semester</label>
             <select id="releaseSemester" style="background:#0f5132;color:white;font-weight:bold;border:none;"><option value="1st">1st Semester</option><option value="2nd">2nd Semester</option></select>
-            <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;">
-                <button id="releaseResultsBtn" style="flex:1;background:#00ff88;color:#0a0a0a;border:none;padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;">✅ RELEASE RESULTS</button>
-                <button id="hideResultsBtn" style="flex:1;background:#ff4444;color:white;border:none;padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;">❌ REJECT / HIDE</button>
-            </div>
-            <p id="releaseStatusMsg" style="margin-top:14px;font-weight:bold;color:#ffc107;text-align:center;"></p>
         </div>
-        
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; max-width:820px;">
+
+            <!-- SEMESTER RESULT SLIP (released first — per senate meeting) -->
+            <div class="card" style="border-top:4px solid #00ff88;">
+                <h2 style="color:#00ff88;">📄 Semester Result Slip</h2>
+                <p style="opacity:0.8;font-size:0.85em;margin-bottom:14px;">
+                    Single-semester view with HOD signature line. Released to students after senate/departmental board approves this semester's results.
+                </p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button id="releaseSlipBtn" style="flex:1;background:#00ff88;color:#0a0a0a;border:none;padding:11px;border-radius:8px;font-weight:bold;cursor:pointer;">✅ RELEASE SLIP</button>
+                    <button id="hideSlipBtn" style="flex:1;background:#ff4444;color:white;border:none;padding:11px;border-radius:8px;font-weight:bold;cursor:pointer;">❌ HIDE SLIP</button>
+                </div>
+                <p id="releaseSlipMsg" style="margin-top:12px;font-weight:bold;color:#ffc107;text-align:center;font-size:0.85rem;"></p>
+            </div>
+
+            <!-- FULL TRANSCRIPT (released later — cumulative, all semesters) -->
+            <div class="card" style="border-top:4px solid #ffc107;">
+                <h2 style="color:#ffc107;">🎓 Full Transcript</h2>
+                <p style="opacity:0.8;font-size:0.85em;margin-bottom:14px;">
+                    All semesters combined with CGPA. Released after full academic session is complete and records are confirmed.
+                </p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button id="releaseResultsBtn" style="flex:1;background:#ffc107;color:#0a0a0a;border:none;padding:11px;border-radius:8px;font-weight:bold;cursor:pointer;">✅ RELEASE TRANSCRIPT</button>
+                    <button id="hideResultsBtn" style="flex:1;background:#ff4444;color:white;border:none;padding:11px;border-radius:8px;font-weight:bold;cursor:pointer;">❌ HIDE TRANSCRIPT</button>
+                </div>
+                <p id="releaseStatusMsg" style="margin-top:12px;font-weight:bold;color:#ffc107;text-align:center;font-size:0.85rem;"></p>
+            </div>
+
+        </div>
     </div>
 
     <!-- STUDENTS -->

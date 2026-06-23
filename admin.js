@@ -252,6 +252,8 @@ document.getElementById('rbWipeAllBtn')?.addEventListener('click', wipeAllBin);
     document.getElementById('releaseFaculty')?.addEventListener('change', updateReleaseDepartments);
     document.getElementById('releaseResultsBtn')?.addEventListener('click', releaseResults);
     document.getElementById('hideResultsBtn')?.addEventListener('click', rejectResults);
+    document.getElementById('releaseSlipBtn')?.addEventListener('click', releaseSlip);
+    document.getElementById('hideSlipBtn')?.addEventListener('click', hideSlip);
 
     document.getElementById('regFaculty')?.addEventListener('change', updateAdminDepartments);
     document.getElementById('regSubmitBtn')?.addEventListener('click', registerUser);
@@ -1664,6 +1666,33 @@ async function setResultsRelease(released) {
 }
 async function releaseResults() { await setResultsRelease(true); }
 async function rejectResults()  { await setResultsRelease(false); }
+async function releaseSlip()    { await setSlipRelease(true); }
+async function hideSlip()       { await setSlipRelease(false); }
+
+async function setSlipRelease(released) {
+    const { dept, level, semester } = getReleaseSelections();
+    if (!dept || !level || !semester) return alert("⚠️ Please select Department, Level and Semester first.");
+    const label  = `${sanitise(dept)} | ${sanitise(level)}L | ${sanitise(semester)} Semester`;
+    const action = released ? "RELEASE SEMESTER SLIP" : "HIDE SEMESTER SLIP";
+    if (!confirm(`${released ? '⚠️' : '🚨'} ${action} for:\n\n📄 ${label}\n\n${released ? 'Students will be able to download their semester result slip.' : 'Students will no longer see the semester result slip.'}`)) return;
+    const key = `SLIP_${dept.trim().toUpperCase()}_${level}_${semester}`;
+    try {
+        const { data: row } = await sb.from('admin_settings').select('results_config').eq('id', 1).maybeSingle();
+        const config = (row && row.results_config) ? row.results_config : {};
+        config[key] = released;
+        const { error } = await sb.from('admin_settings').upsert({ id: 1, results_config: config }, { onConflict: 'id' });
+        if (error) throw error;
+        const msg = document.getElementById('releaseSlipMsg');
+        if (msg) {
+            msg.style.color   = released ? "#00ff88" : "#ff4444";
+            msg.textContent   = released ? `✅ SLIP RELEASED: ${label}` : `❌ SLIP HIDDEN: ${label}`;
+        }
+    } catch (err) {
+        const msg = document.getElementById('releaseSlipMsg');
+        if (msg) { msg.style.color = "#ff4444"; msg.textContent = "❌ Error: " + err.message; }
+        alert(`❌ Failed: ${err.message}`);
+    }
+}
 
 // ── PDF & CSV EXPORT FUNCTIONS ────────────────────────────────────
 function generateBrandedPDF(title, filteredData) {
