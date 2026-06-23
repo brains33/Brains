@@ -934,7 +934,9 @@ function buildSemesterTableHTML(semesterLabel, courseMap, catalogMap) {
         const examScore = data.exam ? Math.min(70, Math.round(parseFloat(data.exam.score))) : 0;
         const total     = Math.min(100, caScore + examScore);
         const { grade, remark } = computeGrade(total);
-        const creditUnits = catalogMap[course] !== undefined ? catalogMap[course] : 3;
+        const catEntry    = catalogMap[course];
+        const creditUnits = catEntry !== undefined ? (catEntry.units !== undefined ? catEntry.units : catEntry) : 3;
+        const courseTitle = (catEntry && catEntry.title) ? catEntry.title : '—';
         const gp          = gradePoint(grade);
         const qp          = gp * creditUnits;
         const gradeColor  = grade === 'F' ? '#cc0000' : grade === 'D' ? '#b45309' : '#0f5132';
@@ -946,6 +948,8 @@ function buildSemesterTableHTML(semesterLabel, courseMap, catalogMap) {
         <tr style="background:${bg}">
             <td style="text-align:center;">${rowIdx}</td>
             <td style="font-weight:bold; letter-spacing:0.4px;">${course}</td>
+            <td style="color:#555;">${courseTitle}</td>
+            <td style="text-align:center; font-weight:bold; color:#0f5132;">${creditUnits}</td>
             <td style="text-align:center; font-weight:bold; color:${gradeColor};">${grade}</td>
             <td style="text-align:center;">
                 <span class="remark-pill" style="background:${grade === 'F' ? '#fee2e2' : '#d1fae5'}; color:${gradeColor};">
@@ -955,8 +959,6 @@ function buildSemesterTableHTML(semesterLabel, courseMap, catalogMap) {
         </tr>`;
     }).join('');
 
-    // GP/QP/Units still computed (needed for GPA/CGPA) but not shown per-row, matching the
-    // standard Nigerian result slip format (NUC/NCE/College of Education) shown to students.
     const { gpa, totalUnits, totalQP } = computeGPA(courseEntries);
     const gpaColor = gpa === null ? '#555' : parseFloat(gpa) >= 3.5 ? '#0f5132' : parseFloat(gpa) >= 2.0 ? '#b45309' : '#cc0000';
 
@@ -967,8 +969,10 @@ function buildSemesterTableHTML(semesterLabel, courseMap, catalogMap) {
         <thead>
           <tr>
             <th style="width:36px;">S/N</th>
-            <th>Course Code</th>
-            <th style="width:70px; text-align:center;">Grade</th>
+            <th style="width:80px;">Course Code</th>
+            <th>Course Title</th>
+            <th style="width:52px; text-align:center;">Credit</th>
+            <th style="width:60px; text-align:center;">Grade</th>
             <th style="width:110px; text-align:center;">Remark</th>
           </tr>
         </thead>
@@ -997,17 +1001,20 @@ async function downloadResultsPDF() {
     // 2. Collect unique course codes to look up credit units
     const courseKeys = [...new Set(results.map(r => (r.subject || r.course || 'N/A').toUpperCase()))];
 
-    // 3. Fetch credit units from course_catalog (fallback = 3 if not found)
+    // 3. Fetch credit units and course titles from course_catalog (fallback = 3 units if not found)
     let catalogMap = {};
     try {
         const { data: catalog } = await sb.from('course_catalog')
-            .select('course_code, credit_units, semester')
+            .select('course_code, credit_units, course_title, semester')
             .eq('department', localData.dept.toUpperCase().trim())
             .eq('level', localData.level)
             .in('course_code', courseKeys);
         if (catalog) {
             catalog.forEach(c => {
-                catalogMap[c.course_code.toUpperCase()] = c.credit_units;
+                catalogMap[c.course_code.toUpperCase()] = {
+                    units: c.credit_units,
+                    title: c.course_title || '—'
+                };
             });
         }
     } catch (e) { /* catalog may not exist yet — use fallback */ }
@@ -1101,6 +1108,7 @@ async function downloadResultsPDF() {
   <div class="footer">BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This document is auto-generated.</div>
 </body></html>`;
     const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("⚠️ Pop-up blocked! Please allow pop-ups for this site in your browser, then try again.");
     printWindow.document.write(printHTML);
     printWindow.document.close();
     printWindow.onload = () => printWindow.print();
@@ -1121,17 +1129,20 @@ async function downloadSemesterSlipPDF() {
     if (error || !results || results.length === 0)
         return alert("No results found for this semester yet.");
 
-    // Get credit units from catalog
+    // Get credit units and course titles from catalog
     const courseKeys = [...new Set(results.map(r => (r.subject || r.course || 'N/A').toUpperCase()))];
     let catalogMap = {};
     try {
         const { data: catalog } = await sb.from('course_catalog')
-            .select('course_code, credit_units')
+            .select('course_code, credit_units, course_title')
             .eq('department', localData.dept.toUpperCase().trim())
             .eq('level', localData.level)
             .in('course_code', courseKeys);
         if (catalog) catalog.forEach(c => {
-            catalogMap[c.course_code.toUpperCase()] = c.credit_units;
+            catalogMap[c.course_code.toUpperCase()] = {
+                units: c.credit_units,
+                title: c.course_title || '—'
+            };
         });
     } catch (e) { /* fallback to 3 units */ }
 
@@ -1212,6 +1223,7 @@ async function downloadSemesterSlipPDF() {
 </body></html>`;
 
     const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("⚠️ Pop-up blocked! Please allow pop-ups for this site in your browser, then try again.");
     printWindow.document.write(slipHTML);
     printWindow.document.close();
     printWindow.onload = () => printWindow.print();
