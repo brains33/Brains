@@ -849,8 +849,9 @@ async function joinClass() {
 // ── RESULTS (ORIGINAL PDF) ─────────────────────────────────────────
 async function checkResultsReleased() {
     if (!localData) return;
+
+    // ── Full transcript: independent check via is_results_released RPC ──
     try {
-        // ── Full transcript: uses existing is_results_released RPC ──
         const { data: transcriptData } = await sb.rpc('is_results_released', {
             p_dept:     localData.dept.trim().toUpperCase(),
             p_level:    localData.level,
@@ -858,8 +859,15 @@ async function checkResultsReleased() {
         });
         const transcriptNav = document.getElementById('downloadResultsNav');
         if (transcriptNav) transcriptNav.style.display = transcriptData === true ? 'flex' : 'none';
+    } catch (e) {
+        console.error("Error checking full transcript release:", e);
+        const tn = document.getElementById('downloadResultsNav');
+        if (tn) tn.style.display = 'none';
+    }
 
-        // ── Semester slip: reads SLIP_ key directly from admin_settings ──
+    // ── Semester slip: independent check via admin_settings SLIP_ key ──
+    // Kept separate so a transcript RPC failure never hides the slip.
+    try {
         const slipKey = `SLIP_${localData.dept.trim().toUpperCase()}_${localData.level}_${localData.semester}`;
         const { data: settingsRow } = await sb
             .from('admin_settings')
@@ -870,13 +878,10 @@ async function checkResultsReleased() {
         const slipOpen = config[slipKey] === true;
         const slipNav  = document.getElementById('downloadSlipNav');
         if (slipNav) slipNav.style.display = slipOpen ? 'flex' : 'none';
-
     } catch (e) {
-        console.error("Error checking results release status:", e);
+        console.error("Error checking semester slip release:", e);
         const sn = document.getElementById('downloadSlipNav');
-        const tn = document.getElementById('downloadResultsNav');
         if (sn) sn.style.display = 'none';
-        if (tn) tn.style.display = 'none';
     }
 }
 
@@ -1087,8 +1092,9 @@ async function downloadResultsPDF() {
 </head>
 <body>
   <div class="header">
-    <h1>🎓 BRAINS AI — OFFICIAL RESULT SLIP</h1>
-    <p>Academic Result Record &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
+    <h1>📋 BRAINS AI — FULL ACADEMIC TRANSCRIPT</h1>
+    <p style="font-size:0.8rem; color:#0f5132; font-weight:bold; letter-spacing:0.5px;">CUMULATIVE RESULT RECORD — ALL SEMESTERS</p>
+    <p>POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
   </div>
   <div class="info-box">
     <div class="info-item"><label>Full Name</label><span>${localData.name}</span></div>
@@ -1191,8 +1197,9 @@ async function downloadSemesterSlipPDF() {
 </head>
 <body>
   <div class="header">
-    <h1>🎓 BRAINS AI — SEMESTER RESULT SLIP</h1>
-    <h2>${localData.semester} Semester Academic Results — ${localData.level}L</h2>
+    <h1>📄 BRAINS AI — SEMESTER RESULT SLIP</h1>
+    <h2 style="color:#0f5132; font-size:1rem; font-weight:bold; margin-top:4px;">${localData.semester} Semester &nbsp;|&nbsp; ${localData.level}L &nbsp;|&nbsp; ${localData.dept}</h2>
+    <p style="font-size:0.72rem; color:#888; margin-top:2px; font-style:italic;">Single Semester Record — Not a Full Transcript</p>
     <p>POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString('en-NG', {day:'2-digit', month:'long', year:'numeric'})}</p>
   </div>
   <div class="info-box">
@@ -1644,11 +1651,15 @@ async function loadCourseRegistration() {
         //    BUT only show them once results are officially released — otherwise
         //    a student who just submitted sees their score and carryover status
         //    before admin has formally released results.
-        const { data: slipReleased } = await sb.rpc('is_results_released', {
-            p_dept:     localData.dept.trim().toUpperCase(),
-            p_level:    localData.level,
-            p_semester: localData.semester
-        }).catch(() => ({ data: false }));
+        let slipReleased = false;
+        try {
+            const { data: _sr } = await sb.rpc('is_results_released', {
+                p_dept:     localData.dept.trim().toUpperCase(),
+                p_level:    localData.level,
+                p_semester: localData.semester
+            });
+            slipReleased = _sr === true;
+        } catch (_) { slipReleased = false; }
 
         const coCodesRaw = [];
         let coCatalogMap = {};
