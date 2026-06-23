@@ -1259,13 +1259,14 @@ async function checkExamCardReleased() {
 
 async function downloadExamCardPDF() {
     if (!localData) return alert("Student data not loaded.");
-    const { data: qData, error } = await sb.from('questions')
-        .select('course')
+    const { data: regData, error } = await sb.from('course_registrations')
+        .select('course_code')
+        .eq('matrix_no', localData.matrix)
         .eq('department', localData.dept.toUpperCase().trim())
         .eq('level', localData.level)
         .eq('semester', localData.semester);
-    if (error || !qData || qData.length === 0) return alert("No courses found for your group. Contact the admin.");
-    const courses = [...new Set(qData.map(q => (q.course || '').toUpperCase().trim()))].filter(Boolean).sort();
+    if (error || !regData || regData.length === 0) return alert("You have no registered courses for this semester. Please complete course registration first.");
+    const courses = regData.map(r => (r.course_code || '').toUpperCase().trim()).filter(Boolean).sort();
     let scheduleMap = {};
     try {
         const { data: sched } = await sb.rpc('get_exam_schedules_for_student', {
