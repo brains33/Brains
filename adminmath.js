@@ -1403,11 +1403,16 @@ async function _lecOnSemChange() {
     try {
         const deptNames = _lecDeptChecked.map(d => d.name);
 
+        // Support both '100' and '100L' storage formats in course_catalog
+        const levelVariants = [...new Set(
+            _lecLevelChecked.flatMap(l => [l, l.replace(/L$/i, ''), l.replace(/L$/i, '') + 'L'])
+        )];
+
         const { data: courses, error } = await sb
             .from('course_catalog')
             .select('course_code, course_title, department, faculty, level, semester')
             .in('department', deptNames)
-            .in('level',      _lecLevelChecked)
+            .in('level',      levelVariants)
             .in('semester',   _lecSemChecked)
             .order('course_code');
 
@@ -1459,7 +1464,7 @@ function lecAddGroup() {
             map[key] = {
                 faculty:    cb.getAttribute('data-faculty'),
                 department: cb.getAttribute('data-dept'),
-                level:      cb.getAttribute('data-level'),
+                level:      cb.getAttribute('data-level').replace(/L$/i, ''),
                 semester:   cb.getAttribute('data-semester'),
                 courses:    []
             };
@@ -1943,8 +1948,12 @@ async function loadStudentsForPaperScores() {
         return;
     }
 
+    // Normalize level (strip trailing L: '100L' → '100') and semester ('1st Semester' → '1st')
+    const levelQ    = level.trim().replace(/L$/i, '');
+    const semesterQ = semester.trim().replace(/\s*Semester$/i, '');
+
     // Store current filters for release/hide
-    _psCurrentFilters = { faculty, dept, level, semester, course };
+    _psCurrentFilters = { faculty, dept, level: levelQ, semester: semesterQ, course };
 
     document.getElementById('psCourseDisplay').innerText = course;
     msgDiv.className = 'msg';
@@ -1956,8 +1965,8 @@ async function loadStudentsForPaperScores() {
             .from('students')
             .select('matrix_no, name')
             .eq('department', dept)
-            .eq('level', level)
-            .eq('semester', semester);
+            .eq('level', levelQ)
+            .eq('semester', semesterQ);
         if (stuErr) throw stuErr;
         if (!students.length) {
             msgDiv.className = 'msg error';
