@@ -63,6 +63,9 @@
         <div class="nav-item" data-page="bursary">
             <span class="icon">💰</span> Bursary Staff
         </div>
+        <div class="nav-item" data-page="lecturers">
+            <span class="icon">🎓</span> Lecturers
+        </div>
 
         <div class="nav-section">System</div>
         <div class="nav-item" data-page="admin">
@@ -465,6 +468,118 @@
         <!-- Reset Password Modal trigger is inside the table -->
     </div>
 
+    <!-- ── PAGE: LECTURERS ── -->
+    <div class="page" id="page-lecturers">
+        <div class="page-header">
+            <h1>🎓 Lecturer Management</h1>
+            <p>Create accounts, assign courses and manage lecturer access</p>
+        </div>
+
+        <!-- ── CREATE NEW LECTURER ── -->
+        <div class="card">
+            <h3>➕ Create New Lecturer Account</h3>
+
+            <!-- Basic credentials -->
+            <div class="grid-2">
+                <div class="field">
+                    <label>Full Name</label>
+                    <input type="text" id="newLecName" placeholder="e.g. Dr. Abubakar Sule">
+                </div>
+                <div class="field">
+                    <label>Email Address</label>
+                    <input type="email" id="newLecEmail" placeholder="lecturer@school.edu.ng">
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label>Password</label>
+                    <input type="password" id="newLecPass" placeholder="Min 8 characters">
+                </div>
+                <div class="field">
+                    <label>Confirm Password</label>
+                    <input type="password" id="newLecPassConfirm" placeholder="Repeat password">
+                </div>
+            </div>
+
+            <hr style="border:none; border-top:1px solid var(--border); margin:20px 0 16px;">
+
+            <!-- Course assignment builder -->
+            <h3 style="margin-bottom:4px;">📚 Assign Courses</h3>
+            <p style="color:var(--muted); font-size:0.8rem; margin-bottom:16px;">
+                Search &amp; check faculties → check departments → check levels → check semesters → check courses. Repeat to build multiple groups.
+            </p>
+
+            <!-- STEP 1 — Faculty search -->
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px;">
+                <input type="text" id="lecFacSearchInput"
+                       placeholder="Search faculty name..."
+                       style="flex:1; padding:10px 14px; background:#0a1a10; border:1px solid var(--border);
+                              border-radius:8px; color:var(--text); font-size:0.88rem; outline:none;">
+                <button id="lecFacSearchBtn" class="btn btn-blue" style="white-space:nowrap;">🔍 Search</button>
+            </div>
+
+            <!-- STEP 1 result — faculty checkboxes -->
+            <div id="lecFacBox" style="display:none; background:rgba(0,255,136,0.03); border:1px solid var(--border);
+                 border-radius:10px; padding:14px; margin-bottom:12px;">
+                <div class="lec-step-label">① Select Faculties</div>
+                <div id="lecFacList" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;"></div>
+            </div>
+
+            <!-- STEP 2 — department checkboxes -->
+            <div id="lecDeptBox" style="display:none; background:rgba(0,255,136,0.03); border:1px solid var(--border);
+                 border-radius:10px; padding:14px; margin-bottom:12px;">
+                <div class="lec-step-label">② Select Departments</div>
+                <div id="lecDeptList" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;"></div>
+            </div>
+
+            <!-- STEP 3 — level checkboxes -->
+            <div id="lecLevelBox" style="display:none; background:rgba(0,255,136,0.03); border:1px solid var(--border);
+                 border-radius:10px; padding:14px; margin-bottom:12px;">
+                <div class="lec-step-label">③ Select Levels</div>
+                <div id="lecLevelList" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;"></div>
+            </div>
+
+            <!-- STEP 4 — semester checkboxes -->
+            <div id="lecSemBox" style="display:none; background:rgba(0,255,136,0.03); border:1px solid var(--border);
+                 border-radius:10px; padding:14px; margin-bottom:12px;">
+                <div class="lec-step-label">④ Select Semesters</div>
+                <div id="lecSemList" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;"></div>
+            </div>
+
+            <!-- STEP 5 — course checkboxes (from course_catalog) -->
+            <div id="lecCourseBox" style="display:none; background:rgba(0,255,136,0.03); border:1px solid var(--border);
+                 border-radius:10px; padding:14px; margin-bottom:12px;">
+                <div class="lec-step-label">⑤ Select Courses</div>
+                <div id="lecCourseList" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;"></div>
+                <button id="lecAddGroupBtn" class="btn btn-green" style="width:100%; margin-top:14px;">
+                    ➕ ADD THIS GROUP TO ASSIGNMENT
+                </button>
+            </div>
+
+            <!-- Running list of added assignment groups -->
+            <div id="lecGroupPreview" style="display:none; margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-size:0.78rem; color:var(--green); font-weight:700; text-transform:uppercase; letter-spacing:1px;">
+                        📋 Assignment Groups Added
+                    </span>
+                    <button id="lecClearGroupsBtn" class="btn btn-red" style="font-size:0.72rem; padding:5px 10px;">
+                        🗑️ Clear All
+                    </button>
+                </div>
+                <div id="lecGroupList"></div>
+            </div>
+
+            <button id="createLecturerBtn" class="btn btn-green" style="width:100%;">🎓 CREATE LECTURER ACCOUNT</button>
+            <div id="createLecMsg" class="msg"></div>
+        </div>
+
+        <!-- ── LECTURER LIST ── -->
+        <div class="card">
+            <h3>👥 Current Lecturers</h3>
+            <div id="lecturerStaffList"><p style="color:var(--muted);">Loading...</p></div>
+        </div>
+    </div>
+
     <!-- ── PAGE: ADMIN PANEL LINK ── -->
     <div class="page" id="page-admin">
         <div class="page-header">
@@ -550,6 +665,72 @@
         <div id="gradingMsg" class="msg" style="text-align:center;"></div>
     </div>
 </div>
+
+<!-- ══════════ RESET LECTURER PASSWORD MODAL ══════════ -->
+<div class="modal" id="resetLecModal">
+    <div class="modal-inner">
+        <div class="modal-header">
+            <h3>🔑 Reset Lecturer Password</h3>
+            <button class="modal-close" id="closeResetLecModal">✕</button>
+        </div>
+        <input type="hidden" id="resetLecId">
+        <div class="field">
+            <label>Lecturer Name</label>
+            <input type="text" id="resetLecName" readonly style="opacity:0.6;">
+        </div>
+        <div class="field">
+            <label>New Password</label>
+            <input type="password" id="resetLecNewPass" placeholder="Min 8 characters">
+        </div>
+        <div class="field">
+            <label>Confirm New Password</label>
+            <input type="password" id="resetLecConfirmPass" placeholder="Repeat new password">
+        </div>
+        <button id="confirmResetLecBtn" class="btn btn-orange" style="width:100%;">🔑 RESET PASSWORD</button>
+        <div id="resetLecMsg" class="msg"></div>
+    </div>
+</div>
+
+<!-- ══════════ VIEW LECTURER ASSIGNMENTS MODAL ══════════ -->
+<div class="modal" id="viewLecAssignModal">
+    <div class="modal-inner" style="max-width:680px; width:95%;">
+        <div class="modal-header">
+            <h3>📚 Assignments — <span id="viewLecAssignName">—</span></h3>
+            <button class="modal-close" id="closeViewLecAssignModal">✕</button>
+        </div>
+        <div id="viewLecAssignBody" style="max-height:420px; overflow-y:auto;"></div>
+    </div>
+</div>
+
+<style>
+.lec-step-label {
+    font-size: 0.7rem;
+    color: var(--green);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.lec-cb-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,255,136,0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.84rem;
+    transition: border-color 0.2s;
+}
+.lec-cb-label:hover { border-color: var(--green); }
+.lec-cb-label input[type="checkbox"] {
+    accent-color: var(--green);
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+</style>
 
 <script src="adminmath.js"></script>
 </body>

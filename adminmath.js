@@ -99,6 +99,7 @@ function initSidebar() {
             if (page === 'assignments') loadAssignments();
             if (page === 'examcard') initExamCardPage();
             if (page === 'examscheduler') initExamSchedulerPage();
+            if (page === 'lecturers') initLecturersPage();
 
             // Close sidebar on mobile
             sidebar.classList.remove('open');
@@ -1208,6 +1209,576 @@ async function forceLogoutCa() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// LECTURER MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════
+
+const LEC_PROXY    = `${S_URL}/functions/v1/lecturer-proxy`;
+const LEC_LEVELS   = ['100','200','300','400','500','600','700','800','900','1000'];
+const LEC_SEMESTERS = ['1st','2nd'];
+
+// ── Builder state ─────────────────────────────────────────────────────
+let _lecGroups       = [];  // final committed groups
+let _lecFacChecked   = [];  // [{id, name}]
+let _lecDeptChecked  = [];  // [{id, name, faculty_id, faculty_name}]
+let _lecLevelChecked = [];  // ['200','300',…]
+let _lecSemChecked   = [];  // ['1st','2nd']
+
+// ── Entry point (called when tab opens) ──────────────────────────────
+function initLecturersPage() {
+    _lecResetBuilder();
+    loadLecturerStaff();
+}
+
+// ── Reset entire builder + form ───────────────────────────────────────
+function _lecResetBuilder() {
+    _lecGroups       = [];
+    _lecFacChecked   = [];
+    _lecDeptChecked  = [];
+    _lecLevelChecked = [];
+    _lecSemChecked   = [];
+
+    ['newLecName','newLecEmail','newLecPass','newLecPassConfirm','lecFacSearchInput']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+    ['lecFacBox','lecDeptBox','lecLevelBox','lecSemBox','lecCourseBox','lecGroupPreview']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+
+    const msg = document.getElementById('createLecMsg');
+    if (msg) { msg.className = 'msg'; msg.innerText = ''; }
+}
+
+// ── STEP 1: Faculty search → show checkboxes ─────────────────────────
+function lecSearchFaculties() {
+    const term    = (document.getElementById('lecFacSearchInput').value || '').trim().toLowerCase();
+    const matches = allFaculties.filter(f => !term || f.name.toLowerCase().includes(term));
+
+    const box  = document.getElementById('lecFacBox');
+    const list = document.getElementById('lecFacList');
+
+    if (!matches.length) {
+        list.innerHTML = '<span style="color:var(--muted);font-size:0.83rem;">No faculties matched.</span>';
+        box.style.display = 'block';
+        return;
+    }
+
+    list.innerHTML = matches.map(f => `
+        <label class="lec-cb-label">
+            <input type="checkbox" class="lec-fac-cb"
+                   value="${sanitise(f.id)}" data-name="${sanitise(f.name)}">
+            <span>${sanitise(f.name)}</span>
+        </label>`).join('');
+
+    box.style.display = 'block';
+
+    // Reset downstream when faculty selection changes
+    list.querySelectorAll('.lec-fac-cb').forEach(cb =>
+        cb.addEventListener('change', _lecOnFacultyChange)
+    );
+}
+
+// ── STEP 2: Faculty checked → department checkboxes ──────────────────
+function _lecOnFacultyChange() {
+    _lecFacChecked = Array.from(document.querySelectorAll('.lec-fac-cb:checked'))
+        .map(cb => ({ id: cb.value, name: cb.getAttribute('data-name') }));
+
+    // Cascade reset
+    _lecDeptChecked = []; _lecLevelChecked = []; _lecSemChecked = [];
+    ['lecDeptBox','lecLevelBox','lecSemBox','lecCourseBox']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+
+    if (!_lecFacChecked.length) return;
+
+    const facIds = _lecFacChecked.map(f => f.id);
+    const depts  = allDepartments.filter(d => facIds.includes(String(d.faculty_id)));
+
+    const box  = document.getElementById('lecDeptBox');
+    const list = document.getElementById('lecDeptList');
+
+    if (!depts.length) {
+        list.innerHTML = '<span style="color:var(--muted);font-size:0.83rem;">No departments found for selected faculties.</span>';
+        box.style.display = 'block';
+        return;
+    }
+
+    list.innerHTML = depts.map(d => {
+        const facName = (_lecFacChecked.find(f => f.id === String(d.faculty_id)) || {}).name || '';
+        return `
+        <label class="lec-cb-label">
+            <input type="checkbox" class="lec-dept-cb"
+                   value="${sanitise(d.id)}"
+                   data-name="${sanitise(d.name)}"
+                   data-facid="${sanitise(d.faculty_id)}"
+                   data-facname="${sanitise(facName)}">
+            <span>${sanitise(d.name)}
+                <small style="color:var(--muted);"> — ${sanitise(facName)}</small>
+            </span>
+        </label>`;
+    }).join('');
+
+    box.style.display = 'block';
+    list.querySelectorAll('.lec-dept-cb').forEach(cb =>
+        cb.addEventListener('change', _lecOnDeptChange)
+    );
+}
+
+// ── STEP 3: Dept checked → level checkboxes ───────────────────────────
+function _lecOnDeptChange() {
+    _lecDeptChecked = Array.from(document.querySelectorAll('.lec-dept-cb:checked'))
+        .map(cb => ({
+            id:          cb.value,
+            name:        cb.getAttribute('data-name'),
+            faculty_id:  cb.getAttribute('data-facid'),
+            faculty_name: cb.getAttribute('data-facname')
+        }));
+
+    _lecLevelChecked = []; _lecSemChecked = [];
+    ['lecLevelBox','lecSemBox','lecCourseBox']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+
+    if (!_lecDeptChecked.length) return;
+
+    const box  = document.getElementById('lecLevelBox');
+    const list = document.getElementById('lecLevelList');
+
+    list.innerHTML = LEC_LEVELS.map(l => `
+        <label class="lec-cb-label" style="min-width:72px;">
+            <input type="checkbox" class="lec-level-cb" value="${l}">
+            <span>${l}L</span>
+        </label>`).join('');
+
+    box.style.display = 'block';
+    list.querySelectorAll('.lec-level-cb').forEach(cb =>
+        cb.addEventListener('change', _lecOnLevelChange)
+    );
+}
+
+// ── STEP 4: Level checked → semester checkboxes ───────────────────────
+function _lecOnLevelChange() {
+    _lecLevelChecked = Array.from(document.querySelectorAll('.lec-level-cb:checked'))
+        .map(cb => cb.value);
+
+    _lecSemChecked = [];
+    ['lecSemBox','lecCourseBox']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+
+    if (!_lecLevelChecked.length) return;
+
+    const box  = document.getElementById('lecSemBox');
+    const list = document.getElementById('lecSemList');
+
+    list.innerHTML = LEC_SEMESTERS.map(s => `
+        <label class="lec-cb-label">
+            <input type="checkbox" class="lec-sem-cb" value="${s}">
+            <span>${s} Semester</span>
+        </label>`).join('');
+
+    box.style.display = 'block';
+    list.querySelectorAll('.lec-sem-cb').forEach(cb =>
+        cb.addEventListener('change', _lecOnSemChange)
+    );
+}
+
+// ── STEP 5: Semester checked → fetch courses from catalog ─────────────
+async function _lecOnSemChange() {
+    _lecSemChecked = Array.from(document.querySelectorAll('.lec-sem-cb:checked'))
+        .map(cb => cb.value);
+
+    const courseBox  = document.getElementById('lecCourseBox');
+    const courseList = document.getElementById('lecCourseList');
+
+    if (!_lecSemChecked.length) { courseBox.style.display = 'none'; return; }
+    if (!_lecDeptChecked.length || !_lecLevelChecked.length) return;
+
+    courseList.innerHTML = '<span style="color:var(--muted);font-size:0.83rem;">Loading courses from catalog...</span>';
+    courseBox.style.display = 'block';
+
+    try {
+        const deptNames = _lecDeptChecked.map(d => d.name);
+
+        const { data: courses, error } = await sb
+            .from('course_catalog')
+            .select('course_code, course_title, department, faculty, level, semester')
+            .in('department', deptNames)
+            .in('level',      _lecLevelChecked)
+            .in('semester',   _lecSemChecked)
+            .order('course_code');
+
+        if (error) throw error;
+
+        if (!courses || !courses.length) {
+            courseList.innerHTML = '<span style="color:var(--error);font-size:0.83rem;">⚠️ No courses found in catalog for these selections.</span>';
+            return;
+        }
+
+        courseList.innerHTML = courses.map(c => `
+            <label class="lec-cb-label">
+                <input type="checkbox" class="lec-course-cb"
+                       value="${sanitise(c.course_code)}"
+                       data-title="${sanitise(c.course_title || '')}"
+                       data-dept="${sanitise(c.department)}"
+                       data-faculty="${sanitise(c.faculty || '')}"
+                       data-level="${sanitise(c.level)}"
+                       data-semester="${sanitise(c.semester)}">
+                <span>
+                    <strong>${sanitise(c.course_code)}</strong>
+                    <small style="color:var(--muted);">
+                        ${c.course_title ? ' — ' + sanitise(c.course_title) : ''}
+                        &nbsp;|&nbsp; ${sanitise(c.department)}
+                        &nbsp;|&nbsp; ${sanitise(c.level)}L
+                        &nbsp;|&nbsp; ${sanitise(c.semester)} Sem
+                    </small>
+                </span>
+            </label>`).join('');
+
+    } catch (err) {
+        courseList.innerHTML = `<span style="color:var(--error);font-size:0.83rem;">❌ ${safeErr(err)}</span>`;
+    }
+}
+
+// ── STEP 6: "Add This Group" — commit checked courses into groups ──────
+function lecAddGroup() {
+    const checked = Array.from(document.querySelectorAll('.lec-course-cb:checked'));
+    if (!checked.length) {
+        alert('⚠️ Please check at least one course before adding the group.');
+        return;
+    }
+
+    // Group by dept + level + semester (one row per unique combination)
+    const map = {};
+    checked.forEach(cb => {
+        const key = `${cb.getAttribute('data-dept')}||${cb.getAttribute('data-level')}||${cb.getAttribute('data-semester')}`;
+        if (!map[key]) {
+            map[key] = {
+                faculty:    cb.getAttribute('data-faculty'),
+                department: cb.getAttribute('data-dept'),
+                level:      cb.getAttribute('data-level'),
+                semester:   cb.getAttribute('data-semester'),
+                courses:    []
+            };
+        }
+        map[key].courses.push({
+            code:  cb.value,
+            title: cb.getAttribute('data-title')
+        });
+    });
+
+    Object.values(map).forEach(g => _lecGroups.push(g));
+    _lecRenderGroupPreview();
+
+    // Reset builder steps 1-5 so admin can add another group
+    _lecFacChecked = []; _lecDeptChecked = []; _lecLevelChecked = []; _lecSemChecked = [];
+    document.getElementById('lecFacSearchInput').value = '';
+    ['lecFacBox','lecDeptBox','lecLevelBox','lecSemBox','lecCourseBox']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+}
+
+// ── Render running list of committed groups ───────────────────────────
+function _lecRenderGroupPreview() {
+    const preview  = document.getElementById('lecGroupPreview');
+    const groupDiv = document.getElementById('lecGroupList');
+
+    if (!_lecGroups.length) { preview.style.display = 'none'; return; }
+
+    groupDiv.innerHTML = _lecGroups.map((g, idx) => `
+        <div style="border:1px solid var(--border); border-radius:8px; padding:12px;
+                    margin-bottom:8px; background:rgba(0,255,136,0.02);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                <div>
+                    <strong style="color:var(--green); font-size:0.88rem;">
+                        ${sanitise(g.department)} &mdash; ${sanitise(g.level)}L &mdash; ${sanitise(g.semester)} Semester
+                    </strong>
+                    <div style="color:var(--muted); font-size:0.76rem; margin:3px 0 8px;">
+                        Faculty: <strong style="color:var(--text);">${sanitise(g.faculty)}</strong>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                        ${g.courses.map(c => `
+                            <span style="background:rgba(0,255,136,0.1); border:1px solid var(--border);
+                                  padding:3px 9px; border-radius:6px; font-size:0.74rem;">
+                                ${sanitise(c.code)}${c.title ? ' &mdash; ' + sanitise(c.title) : ''}
+                            </span>`).join('')}
+                    </div>
+                </div>
+                <button class="btn btn-red lec-remove-group-btn" data-idx="${idx}"
+                        style="font-size:0.7rem; padding:4px 8px; flex-shrink:0;">✕</button>
+            </div>
+        </div>`).join('');
+
+    preview.style.display = 'block';
+
+    groupDiv.querySelectorAll('.lec-remove-group-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            _lecGroups.splice(parseInt(btn.getAttribute('data-idx')), 1);
+            _lecRenderGroupPreview();
+        });
+    });
+}
+
+// ── CREATE LECTURER ──────────────────────────────────────────────────
+async function createLecturerAccount() {
+    const name    = document.getElementById('newLecName').value.trim();
+    const email   = document.getElementById('newLecEmail').value.trim().toLowerCase();
+    const pass    = document.getElementById('newLecPass').value;
+    const confirm = document.getElementById('newLecPassConfirm').value;
+    const msgEl   = document.getElementById('createLecMsg');
+    const btn     = document.getElementById('createLecturerBtn');
+
+    if (!name || !email || !pass) {
+        msgEl.className = 'msg error';
+        msgEl.innerText = '⚠️ Name, email and password are required.';
+        return;
+    }
+    if (pass.length < 8) {
+        msgEl.className = 'msg error';
+        msgEl.innerText = '⚠️ Password must be at least 8 characters.';
+        return;
+    }
+    if (pass !== confirm) {
+        msgEl.className = 'msg error';
+        msgEl.innerText = '⚠️ Passwords do not match.';
+        return;
+    }
+    if (!_lecGroups.length) {
+        msgEl.className = 'msg error';
+        msgEl.innerText = '⚠️ Add at least one course group before creating the account.';
+        return;
+    }
+
+    btn.disabled  = true;
+    btn.innerText = 'Creating...';
+    msgEl.className = 'msg'; msgEl.innerText = '';
+
+    try {
+        const adminToken = sessionStorage.getItem('adminToken');
+        if (!adminToken) throw new Error('Admin session expired. Please log in again.');
+
+        const resp = await fetch(LEC_PROXY, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': S_KEY, 'Authorization': `Bearer ${S_KEY}`, 'x-admin-token': adminToken },
+            body:    JSON.stringify({
+                action:           'create-lecturer',
+                name, email,
+                password:         pass,
+                assigned_courses: _lecGroups
+            })
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || `HTTP ${resp.status}`);
+
+        msgEl.className = 'msg success';
+        msgEl.innerText = `✅ Lecturer account created for ${name}!`;
+        _lecResetBuilder();
+        loadLecturerStaff();
+
+    } catch (err) {
+        msgEl.className = 'msg error';
+        msgEl.innerText = '❌ ' + (err.message || 'Failed to connect to server');
+    } finally {
+        btn.disabled  = false;
+        btn.innerText = '🎓 CREATE LECTURER ACCOUNT';
+    }
+}
+
+// ── LOAD & RENDER LECTURER LIST ───────────────────────────────────────
+async function loadLecturerStaff() {
+    const listDiv = document.getElementById('lecturerStaffList');
+    if (!listDiv) return;
+    listDiv.innerHTML = '<p style="color:var(--muted);">Loading...</p>';
+
+    try {
+        const adminToken = sessionStorage.getItem('adminToken') || '';
+        const resp = await fetch(LEC_PROXY, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': S_KEY, 'Authorization': `Bearer ${S_KEY}`, 'x-admin-token': adminToken },
+            body:    JSON.stringify({ action: 'get-lecturers' })
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || `HTTP ${resp.status}`);
+        _renderLecturerTable(result.lecturers || []);
+
+    } catch (err) {
+        listDiv.innerHTML = `<p style="color:var(--error);">❌ ${safeErr(err)}</p>`;
+    }
+}
+
+function _renderLecturerTable(lecturers) {
+    const listDiv = document.getElementById('lecturerStaffList');
+    if (!lecturers.length) {
+        listDiv.innerHTML = '<p style="color:var(--muted); text-align:center; padding:20px;">No lecturers found.</p>';
+        return;
+    }
+
+    listDiv.innerHTML = `
+        <table class="staff-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Groups</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${lecturers.map(l => {
+                    const isLocked   = l.locked_until && new Date(l.locked_until) > new Date();
+                    const groupCount = Array.isArray(l.assigned_courses) ? l.assigned_courses.length : 0;
+                    return `
+                    <tr>
+                        <td><strong>${sanitise(l.name)}</strong></td>
+                        <td style="color:var(--muted);">${sanitise(l.email)}</td>
+                        <td style="text-align:center;">
+                            <button class="btn btn-blue view-lec-assign-btn"
+                                    data-name="${sanitise(l.name)}"
+                                    data-courses="${sanitise(JSON.stringify(l.assigned_courses || []))}"
+                                    style="font-size:0.72rem; padding:5px 10px;">
+                                📚 ${groupCount} group${groupCount !== 1 ? 's' : ''}
+                            </button>
+                        </td>
+                        <td>
+                            <span class="badge ${isLocked ? 'badge-red' : 'badge-green'}">
+                                ${isLocked ? '🔒 LOCKED' : '✅ ACTIVE'}
+                            </span>
+                        </td>
+                        <td style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <button class="btn btn-orange reset-lec-pass-btn"
+                                    data-id="${l.id}" data-name="${sanitise(l.name)}"
+                                    style="font-size:0.72rem; padding:6px 10px;">
+                                🔑 Reset
+                            </button>
+                            ${isLocked ? `
+                            <button class="btn btn-green unlock-lec-btn"
+                                    data-id="${l.id}"
+                                    style="font-size:0.72rem; padding:6px 10px;">
+                                🔓 Unlock
+                            </button>` : ''}
+                            <button class="btn btn-red delete-lec-btn"
+                                    data-id="${l.id}" data-name="${sanitise(l.name)}"
+                                    style="font-size:0.72rem; padding:6px 10px;">
+                                🗑️ Delete
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+}
+
+// ── VIEW ASSIGNMENTS MODAL ────────────────────────────────────────────
+function openViewLecAssignModal(name, coursesJson) {
+    document.getElementById('viewLecAssignName').innerText = name;
+    const body = document.getElementById('viewLecAssignBody');
+    let groups;
+    try { groups = JSON.parse(coursesJson); } catch { groups = []; }
+
+    body.innerHTML = !groups.length
+        ? '<p style="color:var(--muted); padding:14px;">No assignments.</p>'
+        : groups.map(g => `
+            <div style="border:1px solid var(--border); border-radius:8px; padding:12px;
+                        margin-bottom:10px; background:rgba(0,255,136,0.02);">
+                <strong style="color:var(--green); font-size:0.88rem; display:block; margin-bottom:4px;">
+                    ${sanitise(g.department)} &mdash; ${sanitise(g.level)}L &mdash; ${sanitise(g.semester)} Semester
+                </strong>
+                <div style="color:var(--muted); font-size:0.76rem; margin-bottom:8px;">
+                    Faculty: <strong style="color:var(--text);">${sanitise(g.faculty)}</strong>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                    ${(g.courses || []).map(c => {
+                        const code  = typeof c === 'string' ? c : (c.code  || '');
+                        const title = typeof c === 'string' ? '' : (c.title || '');
+                        return `<span style="background:rgba(0,255,136,0.1); border:1px solid var(--border);
+                                      padding:3px 9px; border-radius:6px; font-size:0.74rem;">
+                                    ${sanitise(code)}${title ? ' &mdash; ' + sanitise(title) : ''}
+                                </span>`;
+                    }).join('')}
+                </div>
+            </div>`).join('');
+
+    document.getElementById('viewLecAssignModal').style.display = 'block';
+}
+
+// ── RESET LECTURER PASSWORD ───────────────────────────────────────────
+function openResetLecModal(id, name) {
+    document.getElementById('resetLecId').value        = id;
+    document.getElementById('resetLecName').value      = name;
+    document.getElementById('resetLecNewPass').value   = '';
+    document.getElementById('resetLecConfirmPass').value = '';
+    document.getElementById('resetLecMsg').className   = 'msg';
+    document.getElementById('resetLecMsg').innerText   = '';
+    document.getElementById('resetLecModal').style.display = 'block';
+}
+
+async function confirmResetLecPassword() {
+    const id      = document.getElementById('resetLecId').value;
+    const newPass = document.getElementById('resetLecNewPass').value;
+    const conf    = document.getElementById('resetLecConfirmPass').value;
+    const msgEl   = document.getElementById('resetLecMsg');
+    const btn     = document.getElementById('confirmResetLecBtn');
+
+    if (newPass.length < 8) {
+        msgEl.className = 'msg error'; msgEl.innerText = 'Password must be at least 8 characters.'; return;
+    }
+    if (newPass !== conf) {
+        msgEl.className = 'msg error'; msgEl.innerText = 'Passwords do not match.'; return;
+    }
+
+    btn.disabled = true; btn.innerText = 'Resetting...';
+    try {
+        const adminToken = sessionStorage.getItem('adminToken');
+        if (!adminToken) throw new Error('Admin session expired.');
+        const resp = await fetch(LEC_PROXY, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': S_KEY, 'Authorization': `Bearer ${S_KEY}`, 'x-admin-token': adminToken },
+            body:    JSON.stringify({ action: 'reset-lecturer-password', lecturerId: parseInt(id), newPassword: newPass })
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || `HTTP ${resp.status}`);
+        msgEl.className = 'msg success';
+        msgEl.innerText = '✅ Password reset successfully!';
+        setTimeout(() => { document.getElementById('resetLecModal').style.display = 'none'; }, 1500);
+    } catch (err) {
+        msgEl.className = 'msg error'; msgEl.innerText = '❌ ' + err.message;
+    } finally {
+        btn.disabled = false; btn.innerText = '🔑 RESET PASSWORD';
+    }
+}
+
+// ── DELETE LECTURER ───────────────────────────────────────────────────
+async function deleteLecturer(id, name) {
+    if (!confirm(`⚠️ Permanently delete lecturer "${name}"?\n\nThis cannot be undone.`)) return;
+    try {
+        const adminToken = sessionStorage.getItem('adminToken');
+        if (!adminToken) throw new Error('Admin session expired.');
+        const resp = await fetch(LEC_PROXY, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': S_KEY, 'Authorization': `Bearer ${S_KEY}`, 'x-admin-token': adminToken },
+            body:    JSON.stringify({ action: 'delete-lecturer', lecturerId: parseInt(id) })
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || 'Delete failed');
+        alert(`✅ Lecturer "${name}" deleted.`);
+        loadLecturerStaff();
+    } catch (err) { alert('❌ ' + err.message); }
+}
+
+// ── UNLOCK LECTURER ───────────────────────────────────────────────────
+async function unlockLecturer(id) {
+    if (!confirm('Unlock this lecturer account?')) return;
+    try {
+        const adminToken = sessionStorage.getItem('adminToken');
+        if (!adminToken) throw new Error('Admin session expired.');
+        const resp = await fetch(LEC_PROXY, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': S_KEY, 'Authorization': `Bearer ${S_KEY}`, 'x-admin-token': adminToken },
+            body:    JSON.stringify({ action: 'unlock-lecturer', lecturerId: parseInt(id) })
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || 'Unlock failed');
+        alert('✅ Account unlocked.');
+        loadLecturerStaff();
+    } catch (err) { alert('❌ ' + err.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1294,11 +1865,46 @@ document.getElementById('bursarStaffList')?.addEventListener('click', (e) => {
 
 
 
-    // ── Reset password modal ──
+    // ── Reset password modal (bursar) ──
     document.getElementById('closeResetModal')?.addEventListener('click', () => {
         document.getElementById('resetPassModal').style.display = 'none';
     });
     document.getElementById('confirmResetBtn')?.addEventListener('click', confirmResetPassword);
+
+    // ── Lecturer management ──
+    document.getElementById('lecFacSearchBtn')?.addEventListener('click', lecSearchFaculties);
+    document.getElementById('lecFacSearchInput')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') lecSearchFaculties();
+    });
+    document.getElementById('lecAddGroupBtn')?.addEventListener('click', lecAddGroup);
+    document.getElementById('lecClearGroupsBtn')?.addEventListener('click', () => {
+        _lecGroups = [];
+        _lecRenderGroupPreview();
+    });
+    document.getElementById('createLecturerBtn')?.addEventListener('click', createLecturerAccount);
+
+    // Lecturer list — delegated clicks (reset / unlock / delete / view assignments)
+    document.getElementById('lecturerStaffList')?.addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const id   = btn.getAttribute('data-id');
+        const name = btn.getAttribute('data-name');
+        if (btn.classList.contains('reset-lec-pass-btn'))  openResetLecModal(id, name);
+        else if (btn.classList.contains('unlock-lec-btn')) unlockLecturer(id);
+        else if (btn.classList.contains('delete-lec-btn')) deleteLecturer(id, name);
+        else if (btn.classList.contains('view-lec-assign-btn')) {
+            openViewLecAssignModal(btn.getAttribute('data-name'), btn.getAttribute('data-courses'));
+        }
+    });
+
+    // Lecturer modals — close buttons + backdrop
+    document.getElementById('closeResetLecModal')?.addEventListener('click', () => {
+        document.getElementById('resetLecModal').style.display = 'none';
+    });
+    document.getElementById('closeViewLecAssignModal')?.addEventListener('click', () => {
+        document.getElementById('viewLecAssignModal').style.display = 'none';
+    });
+    document.getElementById('confirmResetLecBtn')?.addEventListener('click', confirmResetLecPassword);
 
     // Close modals on backdrop click
     document.querySelectorAll('.modal').forEach(modal => {

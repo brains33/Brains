@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecturer Portal | BRAINS AI</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+                   style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+                   img-src 'self' data: https: blob:;
+                   connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
+                   font-src 'self' https://cdnjs.cloudflare.com;
+                   frame-ancestors 'none';">
+    <link rel="stylesheet" href="adminmath.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .welcome-bar {
+            background: linear-gradient(135deg,#0d2a18 0%,#0a1f12 100%);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .welcome-bar .lec-name { font-size:1.1rem; font-weight:700; color:var(--green); }
+        .welcome-bar .lec-sub  { font-size:0.78rem; color:var(--muted); margin-top:2px; }
+        .welcome-bar .grp-badge {
+            background: rgba(0,255,136,0.1);
+            border: 1px solid rgba(0,255,136,0.2);
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 0.78rem;
+            color: var(--green);
+            font-weight: 700;
+        }
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(155px,1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .filter-row label {
+            display: block;
+            font-size: 0.68rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .filter-row select {
+            width: 100%;
+            padding: 10px 12px;
+            background: #0a1a10;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.88rem;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .filter-row select:focus  { border-color: var(--green); }
+        .filter-row select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .score-table-wrap { overflow-x: auto; }
+        .score-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 560px;
+            font-size: 0.85rem;
+        }
+        .score-table thead tr {
+            border-bottom: 2px solid #2a4a2a;
+            color: var(--green);
+            font-size: 0.74rem;
+            text-transform: uppercase;
+        }
+        .score-table th { padding:10px 8px; text-align:center; font-weight:700; }
+        .score-table th:first-child,
+        .score-table th:nth-child(2) { text-align:left; }
+        .score-table td { padding:8px 6px; border-bottom:1px solid #1a2a1a; text-align:center; vertical-align:middle; }
+        .score-table td:first-child,
+        .score-table td:nth-child(2) { text-align:left; }
+        .score-table tbody tr:hover td { background:rgba(0,255,136,0.02); }
+
+        .score-input {
+            width: 62px;
+            padding: 5px 4px;
+            border-radius: 6px;
+            background: #0a1a10;
+            border: 1px solid #2a4a2a;
+            color: var(--text);
+            text-align: center;
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .score-input:focus { border-color: var(--green); }
+
+        .cohort-strip {
+            background: rgba(0,255,136,0.04);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 14px;
+            display: none;
+        }
+        .cohort-strip strong { color: var(--green); }
+
+        .action-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .state-msg {
+            text-align: center;
+            padding: 36px 20px;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+        .state-msg .si { font-size:2.4rem; display:block; margin-bottom:10px; }
+
+        @media (max-width:600px) {
+            .filter-row { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<button class="hamburger" id="hamburger">☰</button>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <h2>🧠 BRAINS AI</h2>
+        <p id="sbLecName">Lecturer Portal</p>
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">Score Entry</div>
+        <div class="nav-item active" data-page="scores">
+            <span class="icon">📊</span> Enter Scores
+        </div>
+        <div class="nav-section">Downloads</div>
+        <div class="nav-item" data-page="scoresheet">
+            <span class="icon">📄</span> Score Sheet PDF
+        </div>
+        <div class="nav-section">Account</div>
+        <div class="nav-item" data-page="profile">
+            <span class="icon">👤</span> My Profile
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <button class="btn-logout" id="logoutBtn">🚪 Logout</button>
+    </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<main class="main">
+
+    <!-- PAGE: SCORE ENTRY -->
+    <div class="page active" id="page-scores">
+        <div class="page-header">
+            <h1>📊 Enter Student Scores</h1>
+            <p>Select your assigned course, load students and type scores — saves directly to results</p>
+        </div>
+
+        <div class="welcome-bar">
+            <div>
+                <div class="lec-name" id="welcomeName">Welcome</div>
+                <div class="lec-sub" id="welcomeSub">Loading assignments...</div>
+            </div>
+            <span class="grp-badge" id="grpBadge">—</span>
+        </div>
+
+        <div class="card">
+            <h3>🔽 Select Cohort &amp; Course</h3>
+            <div class="filter-row">
+                <div>
+                    <label>Faculty</label>
+                    <select id="lfFaculty"><option value="">-- Faculty --</option></select>
+                </div>
+                <div>
+                    <label>Department</label>
+                    <select id="lfDept" disabled><option value="">-- Select Faculty --</option></select>
+                </div>
+                <div>
+                    <label>Level</label>
+                    <select id="lfLevel" disabled><option value="">-- Select Dept --</option></select>
+                </div>
+                <div>
+                    <label>Semester</label>
+                    <select id="lfSemester" disabled><option value="">-- Select Level --</option></select>
+                </div>
+            </div>
+            <div class="filter-row" style="grid-template-columns:1fr auto;">
+                <div>
+                    <label>Course</label>
+                    <select id="lfCourse" disabled><option value="">-- Select Semester --</option></select>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                    <button id="lfLoadBtn" class="btn btn-green" style="height:42px; white-space:nowrap; padding:0 18px;">
+                        📋 Load Students
+                    </button>
+                </div>
+            </div>
+            <div id="lfStatusMsg" class="msg" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="cohort-strip" id="cohortStrip">
+            Loaded: <strong id="stripCourse">—</strong> &nbsp;|&nbsp;
+            <strong id="stripDept">—</strong> &nbsp;|&nbsp;
+            <strong id="stripLevel">—</strong>L &nbsp;|&nbsp;
+            <strong id="stripSem">—</strong> Semester
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+                <h3 style="margin:0;">📋 <span id="tableCourseName" style="color:var(--text); font-weight:400;">Load a course above</span></h3>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:0.75rem; color:var(--muted);">Bulk Exam /70:</span>
+                    <input type="number" id="bulkExamVal" placeholder="Score" min="0" max="70"
+                           style="width:70px; padding:6px 8px; background:#0a1a10; border:1px solid var(--border);
+                                  border-radius:6px; color:var(--text); font-size:0.83rem; outline:none;">
+                    <button id="bulkSetBtn" class="btn"
+                            style="padding:7px 12px; background:#1a3a22; color:var(--green); border:1px solid var(--border);">
+                        Set All
+                    </button>
+                </div>
+            </div>
+
+            <div id="scoresTableWrap" class="score-table-wrap">
+                <div class="state-msg">
+                    <span class="si">📋</span>
+                    Select a course above then click <strong>Load Students</strong>
+                </div>
+            </div>
+
+            <div class="action-bar" id="actionBar" style="display:none;">
+                <button id="saveScoresBtn" class="btn btn-green">💾 Save Scores</button>
+                <button id="downloadPdfBtn" class="btn btn-blue">📄 Download Score Sheet PDF</button>
+                <span id="saveStatusMsg" class="msg" style="margin:0; flex:1;"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE: SCORE SHEET PDF -->
+    <div class="page" id="page-scoresheet">
+        <div class="page-header">
+            <h1>📄 Score Sheet PDF</h1>
+            <p>Generate and download master score sheets for any of your assigned courses</p>
+        </div>
+        <div class="card">
+            <h3>Select Course</h3>
+            <p style="color:var(--muted); font-size:0.83rem; margin-bottom:16px;">
+                Columns: S/N · Name · Matrix No · Course Code &amp; Title · CA /30 · Exam /70 · Total · Grade · Remark
+            </p>
+            <div class="filter-row">
+                <div>
+                    <label>Faculty</label>
+                    <select id="pdfFaculty"><option value="">-- Faculty --</option></select>
+                </div>
+                <div>
+                    <label>Department</label>
+                    <select id="pdfDept" disabled><option value="">-- Select Faculty --</option></select>
+                </div>
+                <div>
+                    <label>Level</label>
+                    <select id="pdfLevel" disabled><option value="">-- Select Dept --</option></select>
+                </div>
+                <div>
+                    <label>Semester</label>
+                    <select id="pdfSemester" disabled><option value="">-- Select Level --</option></select>
+                </div>
+            </div>
+            <div class="filter-row" style="grid-template-columns:1fr auto; margin-top:4px;">
+                <div>
+                    <label>Course</label>
+                    <select id="pdfCourse" disabled><option value="">-- Select Semester --</option></select>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                    <button id="generatePdfBtn" class="btn btn-green" style="height:42px; white-space:nowrap; padding:0 18px;">
+                        📄 Generate PDF
+                    </button>
+                </div>
+            </div>
+            <div id="pdfStatusMsg" class="msg" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <!-- PAGE: PROFILE -->
+    <div class="page" id="page-profile">
+        <div class="page-header">
+            <h1>👤 My Profile</h1>
+            <p>Your account information and full course assignment list</p>
+        </div>
+        <div class="card">
+            <h3>Account Details</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:0.88rem;">
+                <div><span style="color:var(--muted); font-size:0.72rem; text-transform:uppercase; letter-spacing:1px;">Name</span><br><strong id="profName">—</strong></div>
+                <div><span style="color:var(--muted); font-size:0.72rem; text-transform:uppercase; letter-spacing:1px;">Email</span><br><strong id="profEmail">—</strong></div>
+            </div>
+        </div>
+        <div class="card">
+            <h3>📚 My Assigned Courses</h3>
+            <div id="profileAssignments">
+                <div class="state-msg"><span class="si">📋</span>Loading...</div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<script src="lecturer.js"></script>
+</body>
+</html>

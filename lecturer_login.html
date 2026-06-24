@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecturer Login | BRAINS AI</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+                   style-src 'self' 'unsafe-inline';
+                   img-src 'self' data: https:;
+                   connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
+                   font-src 'self';
+                   frame-ancestors 'none';">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #060d08;
+            --surface: #0d1f12;
+            --border:  #1a3320;
+            --green:   #00ff88;
+            --text:    #e8f5ec;
+            --muted:   #5a7a62;
+            --error:   #ff6b6b;
+            --warn:    #f59e0b;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Subtle grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .login-wrap {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 420px;
+        }
+
+        /* Brand header */
+        .brand {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .brand-icon {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .brand h1 {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--green);
+            letter-spacing: 1px;
+        }
+        .brand p {
+            color: var(--muted);
+            font-size: 0.82rem;
+            margin-top: 4px;
+        }
+        .role-badge {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 4px 14px;
+            background: rgba(0,255,136,0.1);
+            border: 1px solid rgba(0,255,136,0.25);
+            border-radius: 50px;
+            font-size: 0.72rem;
+            color: var(--green);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        /* Card */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px 28px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+        }
+
+        /* Field */
+        .field {
+            margin-bottom: 18px;
+        }
+        .field label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 7px;
+            font-weight: 600;
+        }
+        .field input {
+            width: 100%;
+            padding: 12px 14px;
+            background: #0a1a10;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .field input:focus {
+            border-color: var(--green);
+        }
+
+        /* Password wrapper */
+        .pw-wrap {
+            position: relative;
+        }
+        .pw-wrap input {
+            padding-right: 46px;
+        }
+        .pw-toggle {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0;
+            line-height: 1;
+        }
+        .pw-toggle:hover { color: var(--green); }
+
+        /* Submit button */
+        .btn-login {
+            width: 100%;
+            padding: 13px;
+            background: var(--green);
+            color: #061a0c;
+            font-size: 0.9rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
+        .btn-login:hover:not(:disabled) { opacity: 0.88; }
+        .btn-login:active:not(:disabled) { transform: scale(0.98); }
+        .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Message */
+        .msg {
+            min-height: 20px;
+            font-size: 0.83rem;
+            margin-top: 14px;
+            text-align: center;
+            border-radius: 8px;
+            padding: 0;
+            transition: all 0.2s;
+        }
+        .msg.error {
+            color: var(--error);
+            background: rgba(255,107,107,0.08);
+            border: 1px solid rgba(255,107,107,0.2);
+            padding: 10px 14px;
+        }
+        .msg.success {
+            color: var(--green);
+            background: rgba(0,255,136,0.06);
+            border: 1px solid rgba(0,255,136,0.2);
+            padding: 10px 14px;
+        }
+        .msg.info {
+            color: var(--warn);
+            background: rgba(245,158,11,0.06);
+            border: 1px solid rgba(245,158,11,0.2);
+            padding: 10px 14px;
+        }
+
+        /* Spinner inside button */
+        .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(6,26,12,0.3);
+            border-top-color: #061a0c;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Footer */
+        .footer-link {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        /* Lockout countdown */
+        #lockCountdown {
+            font-size: 2rem;
+            font-weight: 900;
+            font-family: monospace;
+            color: var(--error);
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            .card { padding: 24px 18px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-wrap">
+
+    <!-- Brand -->
+    <div class="brand">
+        <span class="brand-icon">🧠</span>
+        <h1>BRAINS AI</h1>
+        <p>Powered by MU'UJIZA DATA</p>
+        <span class="role-badge">🎓 Lecturer Portal</span>
+    </div>
+
+    <!-- Card -->
+    <div class="card">
+        <div class="field">
+            <label>Email Address</label>
+            <input type="email" id="lecEmail" placeholder="your@email.edu.ng" autocomplete="email">
+        </div>
+
+        <div class="field">
+            <label>Password</label>
+            <div class="pw-wrap">
+                <input type="password" id="lecPassword" placeholder="Enter your password" autocomplete="current-password">
+                <button class="pw-toggle" id="pwToggle" type="button" title="Show/hide password">👁</button>
+            </div>
+        </div>
+
+        <button class="btn-login" id="loginBtn">🔐 LOGIN</button>
+        <div class="msg" id="loginMsg"></div>
+        <div id="lockCountdown"></div>
+    </div>
+
+    <div class="footer-link">
+        Contact your administrator to reset your password.
+    </div>
+
+</div>
+
+<script src="lecturer_login.js"></script>
+</body>
+</html>
