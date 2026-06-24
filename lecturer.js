@@ -231,10 +231,10 @@ async function loadStudents() {
         return;
     }
 
-    // Trim invisible whitespace that may have been stored in course_catalog values
+    // Trim whitespace and normalize semester to match students table format ("1st" not "1st Semester")
     const deptQ     = dept.trim();
     const levelQ    = level.trim();
-    const semesterQ = semester.trim();
+    const semesterQ = semester.trim().replace(/\s*Semester$/i, '');
 
     _currentFilter = { faculty, dept: deptQ, level: levelQ, semester: semesterQ, courseCode, courseTitle };
 
@@ -446,10 +446,10 @@ async function generateScoreSheetPDF(opts) {
 
     msgEl.className = 'msg'; msgEl.innerText = '⏳ Fetching data...';
 
-    // Trim invisible whitespace that may live in stored catalog values
+    // Trim whitespace and normalize semester to match students table format ("1st" not "1st Semester")
     const deptQ     = dept.trim();
     const levelQ    = level.trim();
-    const semesterQ = semester.trim();
+    const semesterQ = semester.trim().replace(/\s*Semester$/i, '');
 
     try {
         const { data: students, error: stuErr } = await sb
