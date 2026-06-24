@@ -1643,7 +1643,7 @@ function _renderLecturerTable(lecturers) {
                         <td style="text-align:center;">
                             <button class="btn btn-blue view-lec-assign-btn"
                                     data-name="${sanitise(l.name)}"
-                                    data-courses="${sanitise(JSON.stringify(l.assigned_courses || []))}"
+                                    data-courses="${encodeURIComponent(JSON.stringify(l.assigned_courses || []))}"
                                     style="font-size:0.72rem; padding:5px 10px;">
                                 📚 ${groupCount} group${groupCount !== 1 ? 's' : ''}
                             </button>
@@ -1682,7 +1682,7 @@ function openViewLecAssignModal(name, coursesJson) {
     document.getElementById('viewLecAssignName').innerText = name;
     const body = document.getElementById('viewLecAssignBody');
     let groups;
-    try { groups = JSON.parse(coursesJson); } catch { groups = []; }
+    try { groups = JSON.parse(decodeURIComponent(coursesJson)); } catch { groups = []; }
 
     body.innerHTML = !groups.length
         ? '<p style="color:var(--muted); padding:14px;">No assignments.</p>'

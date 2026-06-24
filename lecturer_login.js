@@ -137,6 +137,13 @@ async function lecturerLogin() {
 
     if (!inputPhone || !inputPass) return alert('Please enter Phone Number and Password');
 
+    // Extra guard: catch whitespace-only password that .trim() collapses to ""
+    if (inputPass.length === 0) {
+        alert('⚠️ Password cannot be empty.');
+        passField.focus();
+        return;
+    }
+
     loginBtn.disabled  = true;
     loginBtn.innerText = 'Authenticating...';
 
