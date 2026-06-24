@@ -246,19 +246,41 @@ async function loadStudents() {
     loadBtn.disabled = true; loadBtn.textContent = 'Loading...';
 
     try {
+        // ── Step 1: Get matrix_nos who registered this specific course ─────
+        const { data: regRows, error: regErr } = await sb
+            .from('course_registrations')
+            .select('matrix_no')
+            .eq('course_code', courseCode)
+            .eq('department', deptQ)
+            .eq('level', levelQ)
+            .eq('semester', semesterQ);
+
+        if (regErr) throw regErr;
+
+        const registeredMatrices = (regRows || []).map(r => r.matrix_no);
+
+        if (!registeredMatrices.length) {
+            msgEl.className = 'msg error';
+            msgEl.innerText = '⚠️ No students have registered this course yet.';
+            document.getElementById('scoresTableWrap').innerHTML =
+                '<div class="state-msg"><span class="si">🔍</span>No registered students found for this course.</div>';
+            document.getElementById('actionBar').style.display   = 'none';
+            document.getElementById('cohortStrip').style.display = 'none';
+            return;
+        }
+
+        // ── Step 2: Fetch student names for those matrix_nos ──────────────
         const { data: students, error: stuErr } = await sb
             .from('students')
             .select('matrix_no, name')
-            .eq('department', deptQ)
-            .eq('level', levelQ)
-            .eq('semester', semesterQ)
+            .in('matrix_no', registeredMatrices)
             .order('name');
 
         if (stuErr) throw stuErr;
 
         if (!students || !students.length) {
             msgEl.className = 'msg error';
-            msgEl.innerText = '⚠️ No students found for this cohort.';
+            msgEl.innerText = '⚠️ No student records found for registered matrix numbers.';
             document.getElementById('scoresTableWrap').innerHTML =
                 '<div class="state-msg"><span class="si">🔍</span>No students found.</div>';
             document.getElementById('actionBar').style.display   = 'none';
@@ -456,12 +478,27 @@ async function generateScoreSheetPDF(opts) {
     const semesterQ = semester.trim().replace(/\s*Semester$/i, '');
 
     try {
+        // ── Step 1: Get registered matrix_nos for this course ─────────────
+        const { data: regRows, error: regErr } = await sb
+            .from('course_registrations')
+            .select('matrix_no')
+            .eq('course_code', courseCode)
+            .eq('department', deptQ)
+            .eq('level', levelQ)
+            .eq('semester', semesterQ);
+        if (regErr) throw regErr;
+        const registeredMatrices = (regRows || []).map(r => r.matrix_no);
+        if (!registeredMatrices.length) {
+            msgEl.className = 'msg error'; msgEl.innerText = '⚠️ No students have registered this course yet.'; return;
+        }
+
+        // ── Step 2: Fetch names for those matrix_nos ──────────────────────
         const { data: students, error: stuErr } = await sb
             .from('students').select('matrix_no, name')
-            .eq('department', deptQ).eq('level', levelQ).eq('semester', semesterQ).order('name');
+            .in('matrix_no', registeredMatrices).order('name');
         if (stuErr) throw stuErr;
         if (!students || !students.length) {
-            msgEl.className = 'msg error'; msgEl.innerText = '⚠️ No students found.'; return;
+            msgEl.className = 'msg error'; msgEl.innerText = '⚠️ No student records found.'; return;
         }
 
         const { data: scores, error: scoreErr } = await sb
