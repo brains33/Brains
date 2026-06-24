@@ -1245,6 +1245,14 @@ function _lecResetBuilder() {
 
     const msg = document.getElementById('createLecMsg');
     if (msg) { msg.className = 'msg'; msg.innerText = ''; }
+
+    // Lock CREATE button until at least one group is committed
+    const createBtn = document.getElementById('createLecturerBtn');
+    if (createBtn) {
+        createBtn.disabled = true;
+        createBtn.style.opacity = '0.45';
+        createBtn.title = 'Add at least one course group before creating the account.';
+    }
 }
 
 // ── STEP 1: Faculty search → show checkboxes ─────────────────────────
@@ -1477,7 +1485,13 @@ function _lecRenderGroupPreview() {
     const preview  = document.getElementById('lecGroupPreview');
     const groupDiv = document.getElementById('lecGroupList');
 
-    if (!_lecGroups.length) { preview.style.display = 'none'; return; }
+    const createBtn = document.getElementById('createLecturerBtn');
+    if (!_lecGroups.length) {
+        preview.style.display = 'none';
+        if (createBtn) { createBtn.disabled = true; createBtn.style.opacity = '0.45'; }
+        return;
+    }
+    if (createBtn) { createBtn.disabled = false; createBtn.style.opacity = ''; createBtn.title = ''; }
 
     groupDiv.innerHTML = _lecGroups.map((g, idx) => `
         <div style="border:1px solid var(--border); border-radius:8px; padding:12px;
@@ -1612,7 +1626,7 @@ function _renderLecturerTable(lecturers) {
             <thead>
                 <tr>
                     <th>Name</th>
-                    <th>Email</th>
+                    <th>Phone</th>
                     <th>Groups</th>
                     <th>Status</th>
                     <th>Actions</th>
