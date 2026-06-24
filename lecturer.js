@@ -153,7 +153,7 @@ function buildDropdowns(prefix) {
         )].sort((a, b) => parseInt(a) - parseInt(b));
         const lSel = document.getElementById(prefix + 'Level');
         lSel.innerHTML = '<option value="">-- Select Level --</option>' +
-            levels.map(l => '<option value="' + sanitise(l) + '">' + sanitise(l) + 'L</option>').join('');
+            levels.map(l => '<option value="' + sanitise(l) + '">' + sanitise(l) + '</option>').join('');
         lSel.disabled = false;
         _resetDrop(prefix + 'Semester', '-- Select Level First --');
         _resetDrop(prefix + 'Course',   '-- Select Semester First --');
@@ -270,23 +270,20 @@ async function loadStudents() {
         }
 
         // ── Step 2: Fetch student names for those matrix_nos ──────────────
-        const { data: students, error: stuErr } = await sb
-            .from('students')
-            .select('matrix_no, name')
-            .in('matrix_no', registeredMatrices)
-            .order('name');
+        // RLS may block the students table for lecturer token — fall back to matrix_no as name
+        let nameMap = {};
+        try {
+            const { data: stuRows } = await sb
+                .from('students')
+                .select('matrix_no, name')
+                .in('matrix_no', registeredMatrices);
+            (stuRows || []).forEach(s => { nameMap[s.matrix_no] = s.name; });
+        } catch (_) { /* RLS blocked — proceed without names */ }
 
-        if (stuErr) throw stuErr;
-
-        if (!students || !students.length) {
-            msgEl.className = 'msg error';
-            msgEl.innerText = '⚠️ No student records found for registered matrix numbers.';
-            document.getElementById('scoresTableWrap').innerHTML =
-                '<div class="state-msg"><span class="si">🔍</span>No students found.</div>';
-            document.getElementById('actionBar').style.display   = 'none';
-            document.getElementById('cohortStrip').style.display = 'none';
-            return;
-        }
+        // Build student list using nameMap; fall back to matrix_no if name not found
+        const students = registeredMatrices
+            .map(m => ({ matrix_no: m, name: nameMap[m] || m }))
+            .sort((a, b) => a.name.localeCompare(b.name));
 
         const { data: scores, error: scoreErr } = await sb
             .from('results')
@@ -493,13 +490,17 @@ async function generateScoreSheetPDF(opts) {
         }
 
         // ── Step 2: Fetch names for those matrix_nos ──────────────────────
-        const { data: students, error: stuErr } = await sb
-            .from('students').select('matrix_no, name')
-            .in('matrix_no', registeredMatrices).order('name');
-        if (stuErr) throw stuErr;
-        if (!students || !students.length) {
-            msgEl.className = 'msg error'; msgEl.innerText = '⚠️ No student records found.'; return;
-        }
+        // RLS may block students table — fall back to matrix_no as name
+        let nameMap2 = {};
+        try {
+            const { data: stuRows2 } = await sb
+                .from('students').select('matrix_no, name')
+                .in('matrix_no', registeredMatrices);
+            (stuRows2 || []).forEach(s => { nameMap2[s.matrix_no] = s.name; });
+        } catch (_) { /* proceed without names */ }
+        const students = registeredMatrices
+            .map(m => ({ matrix_no: m, name: nameMap2[m] || m }))
+            .sort((a, b) => a.name.localeCompare(b.name));
 
         const { data: scores, error: scoreErr } = await sb
             .from('results').select('matrix_no, score, is_ca')
