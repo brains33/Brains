@@ -547,7 +547,7 @@ function generatePdfFromDropdowns() {
 // ═════════════════ PROFILE ═════════════════
 function populateProfile() {
     document.getElementById('profName').textContent  = lecturerData.name  || '—';
-    document.getElementById('profEmail').textContent = lecturerData.email || '—';
+    document.getElementById('profPhone').textContent = lecturerData.phone || '—';
 
     const groups = Array.isArray(lecturerData.assigned_courses) ? lecturerData.assigned_courses : [];
     const container = document.getElementById('profileAssignments');

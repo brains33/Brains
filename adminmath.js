@@ -1355,7 +1355,7 @@ function _lecOnDeptChange() {
 // ── STEP 4: Level checked → semester checkboxes ───────────────────────
 function _lecOnLevelChange() {
     _lecLevelChecked = Array.from(document.querySelectorAll('.lec-level-cb:checked'))
-        .map(cb => cb.value);
+        .map(cb => cb.value.replace('L', ''));  // DB stores '100' not '100L'
 
     _lecSemChecked = [];
     ['lecSemBox','lecCourseBox']
