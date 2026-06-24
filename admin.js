@@ -3125,15 +3125,21 @@ async function loadRegistrationView() {
         return;
     }
 
+    // Normalize: strip trailing L ('100L'→'100') and 'Semester' suffix ('1st Semester'→'1st')
+    const deptQ     = dept.toUpperCase().trim();
+    const levelQ    = level.trim().replace(/L$/i, '');
+    const semesterQ = semester.trim().replace(/\s*Semester$/i, '');
+
     container.innerHTML = '<p style="color:#a0aec0;">Loading...</p>';
 
     try {
+        // ── Step 1: Get all registrations for this cohort ─────────────────
         const { data, error } = await sb
             .from('course_registrations')
             .select('matrix_no, course_code')
-            .eq('department', dept.toUpperCase().trim())
-            .eq('level', level)
-            .eq('semester', semester)
+            .eq('department', deptQ)
+            .eq('level', levelQ)
+            .eq('semester', semesterQ)
             .order('matrix_no');
 
         if (error) throw error;
@@ -3142,7 +3148,18 @@ async function loadRegistrationView() {
             return;
         }
 
-        // Group by student
+        // ── Step 2: Fetch student names for those matrix numbers ──────────
+        const uniqueMatrices = [...new Set(data.map(r => r.matrix_no))];
+        const { data: students, error: stuErr } = await sb
+            .from('students')
+            .select('matrix_no, name')
+            .in('matrix_no', uniqueMatrices);
+        if (stuErr) throw stuErr;
+
+        const nameMap = {};
+        (students || []).forEach(s => { nameMap[s.matrix_no] = s.name; });
+
+        // ── Step 3: Group courses by student ─────────────────────────────
         const byStudent = {};
         data.forEach(r => {
             if (!byStudent[r.matrix_no]) byStudent[r.matrix_no] = [];
@@ -3152,18 +3169,20 @@ async function loadRegistrationView() {
         const rows = Object.entries(byStudent).map(([matrix, courses], i) => `
             <tr style="background:${i % 2 === 0 ? '#111' : '#0a0a0a'}; border-bottom:1px solid #222;">
                 <td style="padding:10px; color:#00ff88; font-weight:bold;">${sanitise(matrix)}</td>
-                <td style="padding:10px; color:#ccc;">${courses.map(c => sanitise(c)).join(', ')}</td>
+                <td style="padding:10px; color:#ccc;">${sanitise(nameMap[matrix] || '—')}</td>
+                <td style="padding:10px; color:#aaa; font-size:0.82rem;">${courses.map(c => sanitise(c)).join(', ')}</td>
                 <td style="padding:10px; text-align:center; color:#facc15;">${courses.length}</td>
             </tr>`).join('');
 
         container.innerHTML = `
             <p style="color:#a0aec0; margin-bottom:10px;">
-                ${Object.keys(byStudent).length} student(s) registered | ${dept} ${level}L (${semester} Semester)
+                ${Object.keys(byStudent).length} student(s) registered | ${deptQ} ${levelQ}L (${semesterQ} Semester)
             </p>
             <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                 <thead>
                     <tr style="background:#0f5132; color:white; text-align:left;">
                         <th style="padding:10px;">Matrix No.</th>
+                        <th style="padding:10px;">Student Name</th>
                         <th style="padding:10px;">Registered Courses</th>
                         <th style="padding:10px; text-align:center;">Count</th>
                     </tr>

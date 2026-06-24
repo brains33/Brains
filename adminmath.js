@@ -1935,9 +1935,9 @@ document.getElementById('bursarStaffList')?.addEventListener('click', (e) => {
 
 // ── PAPER EXAM SCORES ─────────────────────────────────────────────────
 async function loadStudentsForPaperScores() {
-    const faculty = document.getElementById('psFaculty').value;
-    const dept    = document.getElementById('psDept').value;
-    const level   = document.getElementById('psLevel').value;
+    const faculty  = document.getElementById('psFaculty').value;
+    const dept     = document.getElementById('psDept').value;
+    const level    = document.getElementById('psLevel').value;
     const semester = document.getElementById('psSemester').value;
     const course   = document.getElementById('psCourse').value.trim().toUpperCase();
 
@@ -1948,7 +1948,7 @@ async function loadStudentsForPaperScores() {
         return;
     }
 
-    // Normalize level (strip trailing L: '100L' → '100') and semester ('1st Semester' → '1st')
+    // Normalize: strip trailing L ('100L' → '100'), strip 'Semester' suffix ('1st Semester' → '1st')
     const levelQ    = level.trim().replace(/L$/i, '');
     const semesterQ = semester.trim().replace(/\s*Semester$/i, '');
 
@@ -1960,33 +1960,51 @@ async function loadStudentsForPaperScores() {
     msgDiv.innerText = 'Loading students...';
 
     try {
-        // 1. Fetch students in this cohort
-        const { data: students, error: stuErr } = await sb
-            .from('students')
-            .select('matrix_no, name')
-            .eq('department', dept)
+        // ── Step 1: Get matrix_nos who registered this specific course ────
+        const { data: regRows, error: regErr } = await sb
+            .from('course_registrations')
+            .select('matrix_no')
+            .eq('course_code', course)
+            .eq('department', dept.toUpperCase().trim())
             .eq('level', levelQ)
             .eq('semester', semesterQ);
-        if (stuErr) throw stuErr;
-        if (!students.length) {
+        if (regErr) throw regErr;
+
+        const registeredMatrices = (regRows || []).map(r => r.matrix_no);
+
+        if (!registeredMatrices.length) {
             msgDiv.className = 'msg error';
-            msgDiv.innerText = 'No students found for this cohort.';
-            document.getElementById('psScoresTable').innerHTML = '<p style="color:var(--muted);">No students.</p>';
+            msgDiv.innerText = '⚠️ No students have registered this course yet.';
+            document.getElementById('psScoresTable').innerHTML = '<p style="color:var(--muted);">No registered students found for this course.</p>';
             return;
         }
 
-        // 2. Fetch existing exam scores and CA scores for this course
-        const matrixList = students.map(s => s.matrix_no);
+        // ── Step 2: Fetch student names for those matrix_nos ─────────────
+        const { data: students, error: stuErr } = await sb
+            .from('students')
+            .select('matrix_no, name')
+            .in('matrix_no', registeredMatrices)
+            .order('name');
+        if (stuErr) throw stuErr;
+
+        if (!students || !students.length) {
+            msgDiv.className = 'msg error';
+            msgDiv.innerText = '⚠️ No student records found for registered matrix numbers.';
+            document.getElementById('psScoresTable').innerHTML = '<p style="color:var(--muted);">No students found.</p>';
+            return;
+        }
+
+        // ── Step 3: Fetch existing scores for this course ─────────────────
         const { data: scores, error: scoreErr } = await sb
             .from('results')
             .select('matrix_no, score, is_ca')
-            .in('matrix_no', matrixList)
+            .in('matrix_no', students.map(s => s.matrix_no))
             .eq('subject', course);
         if (scoreErr) throw scoreErr;
 
         const examScoreMap = {};
         const caScoreMap   = {};
-        scores.forEach(s => {
+        (scores || []).forEach(s => {
             if (s.is_ca) caScoreMap[s.matrix_no]   = s.score;
             else          examScoreMap[s.matrix_no] = s.score;
         });
