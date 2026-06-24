@@ -87,9 +87,9 @@ function applyLockout() {
 
 function updateLockoutUI() {
     const loginBtn   = document.getElementById('loginBtn');
-    const emailField = document.getElementById('email');
-    const passField  = document.getElementById('password');
-    const lockoutMsg = document.getElementById('lockoutMsg');
+    const emailField = document.getElementById('lecEmail');
+    const passField  = document.getElementById('lecPassword');
+    const lockoutMsg = document.getElementById('lockCountdown');
 
     if (!isLockedOut()) {
         if (loginBtn)   { loginBtn.disabled = false; loginBtn.innerText = 'LOGIN'; }
@@ -128,8 +128,8 @@ function updateLockoutUI() {
 async function lecturerLogin() {
     if (isLockedOut()) { updateLockoutUI(); return; }
 
-    const emailField = document.getElementById('email');
-    const passField  = document.getElementById('password');
+    const emailField = document.getElementById('lecEmail');
+    const passField  = document.getElementById('lecPassword');
     const loginBtn   = document.getElementById('loginBtn');
 
     const inputEmail = emailField.value.trim();
@@ -208,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ?.addEventListener('click', lecturerLogin);
 
     // Enter key submits from password field
-    document.getElementById('password')
+    document.getElementById('lecPassword')
         ?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') lecturerLogin();
         });
