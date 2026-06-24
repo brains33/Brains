@@ -146,8 +146,10 @@ function buildDropdowns(prefix) {
     document.getElementById(prefix + 'Dept').addEventListener('change', function() {
         const fac    = facSel.value;
         const dept   = this.value;
+        // Normalize: strip trailing 'L' so value is always '100', display is always '100L'
         const levels = [...new Set(
-            groups.filter(g => g.faculty === fac && g.department === dept).map(g => g.level)
+            groups.filter(g => g.faculty === fac && g.department === dept)
+                  .map(g => String(g.level).replace(/L$/i, ''))
         )].sort((a, b) => parseInt(a) - parseInt(b));
         const lSel = document.getElementById(prefix + 'Level');
         lSel.innerHTML = '<option value="">-- Select Level --</option>' +
@@ -161,9 +163,11 @@ function buildDropdowns(prefix) {
     document.getElementById(prefix + 'Level').addEventListener('change', function() {
         const fac   = facSel.value;
         const dept  = document.getElementById(prefix + 'Dept').value;
-        const level = this.value;
+        const level = this.value; // always clean '100' now
         const sems  = [...new Set(
-            groups.filter(g => g.faculty === fac && g.department === dept && g.level === level)
+            // Match against both '100' and '100L' in case old data has either format
+            groups.filter(g => g.faculty === fac && g.department === dept &&
+                               String(g.level).replace(/L$/i, '') === level)
                   .map(g => g.semester)
         )].sort();
         const sSel = document.getElementById(prefix + 'Semester');
@@ -177,11 +181,11 @@ function buildDropdowns(prefix) {
     document.getElementById(prefix + 'Semester').addEventListener('change', function() {
         const fac      = facSel.value;
         const dept     = document.getElementById(prefix + 'Dept').value;
-        const level    = document.getElementById(prefix + 'Level').value;
+        const level    = document.getElementById(prefix + 'Level').value; // clean '100'
         const semester = this.value;
         const group    = groups.find(g =>
             g.faculty === fac && g.department === dept &&
-            g.level === level && g.semester === semester
+            String(g.level).replace(/L$/i, '') === level && g.semester === semester
         );
         const courses = (group && Array.isArray(group.courses)) ? group.courses : [];
         const cSel = document.getElementById(prefix + 'Course');
@@ -231,9 +235,9 @@ async function loadStudents() {
         return;
     }
 
-    // Trim whitespace and normalize semester to match students table format ("1st" not "1st Semester")
+    // Normalize: strip trailing L ('100L'→'100'), strip 'Semester' suffix from semester
     const deptQ     = dept.trim();
-    const levelQ    = level.trim();
+    const levelQ    = level.trim().replace(/L$/i, '');
     const semesterQ = semester.trim().replace(/\s*Semester$/i, '');
 
     _currentFilter = { faculty, dept: deptQ, level: levelQ, semester: semesterQ, courseCode, courseTitle };
@@ -446,9 +450,9 @@ async function generateScoreSheetPDF(opts) {
 
     msgEl.className = 'msg'; msgEl.innerText = '⏳ Fetching data...';
 
-    // Trim whitespace and normalize semester to match students table format ("1st" not "1st Semester")
+    // Normalize: strip trailing L ('100L'→'100'), strip 'Semester' suffix from semester
     const deptQ     = dept.trim();
-    const levelQ    = level.trim();
+    const levelQ    = level.trim().replace(/L$/i, '');
     const semesterQ = semester.trim().replace(/\s*Semester$/i, '');
 
     try {
