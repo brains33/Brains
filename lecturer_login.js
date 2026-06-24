@@ -87,13 +87,13 @@ function applyLockout() {
 
 function updateLockoutUI() {
     const loginBtn   = document.getElementById('loginBtn');
-    const emailField = document.getElementById('lecEmail');
+    const phoneField = document.getElementById('lecPhone');
     const passField  = document.getElementById('lecPassword');
     const lockoutMsg = document.getElementById('lockCountdown');
 
     if (!isLockedOut()) {
         if (loginBtn)   { loginBtn.disabled = false; loginBtn.innerText = 'LOGIN'; }
-        if (emailField) emailField.disabled = false;
+        if (phoneField) phoneField.disabled = false;
         if (passField)  passField.disabled  = false;
         if (lockoutMsg) lockoutMsg.style.display = 'none';
         if (lockoutInterval) { clearInterval(lockoutInterval); lockoutInterval = null; }
@@ -101,7 +101,7 @@ function updateLockoutUI() {
     }
 
     if (loginBtn)   { loginBtn.disabled = true; loginBtn.innerText = 'LOCKED'; }
-    if (emailField) emailField.disabled = true;
+    if (phoneField) phoneField.disabled = true;
     if (passField)  passField.disabled  = true;
 
     if (lockoutMsg) {
@@ -128,14 +128,14 @@ function updateLockoutUI() {
 async function lecturerLogin() {
     if (isLockedOut()) { updateLockoutUI(); return; }
 
-    const emailField = document.getElementById('lecEmail');
+    const phoneField = document.getElementById('lecPhone');
     const passField  = document.getElementById('lecPassword');
     const loginBtn   = document.getElementById('loginBtn');
 
-    const inputEmail = emailField.value.trim();
+    const inputPhone = phoneField.value.trim();
     const inputPass  = passField.value.trim();
 
-    if (!inputEmail || !inputPass) return alert('Please enter Email and Password');
+    if (!inputPhone || !inputPass) return alert('Please enter Phone Number and Password');
 
     loginBtn.disabled  = true;
     loginBtn.innerText = 'Authenticating...';
@@ -144,7 +144,7 @@ async function lecturerLogin() {
         const response = await fetch(PROXY_URL, {
             method:  'POST',
             headers: PROXY_HEADERS,
-            body:    JSON.stringify({ action: 'lecturer-login', email: inputEmail, password: inputPass })
+            body:    JSON.stringify({ action: 'lecturer-login', phone: inputPhone, password: inputPass })
         });
 
         const result = await response.json();

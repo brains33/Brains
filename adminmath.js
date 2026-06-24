@@ -1213,7 +1213,7 @@ async function forceLogoutCa() {
 // ═══════════════════════════════════════════════════════════════════════
 
 const LEC_PROXY    = `${S_URL}/functions/v1/lecturer-proxy`;
-const LEC_LEVELS   = ['100','200','300','400','500','600','700','800','900','1000'];
+const LEC_LEVELS   = ['100L','200L','300L','400L','500L','600L','700L','800L','900L','1000L'];
 const LEC_SEMESTERS = ['1st','2nd'];
 
 // ── Builder state ─────────────────────────────────────────────────────
@@ -1237,7 +1237,7 @@ function _lecResetBuilder() {
     _lecLevelChecked = [];
     _lecSemChecked   = [];
 
-    ['newLecName','newLecEmail','newLecPass','newLecPassConfirm','lecFacSearchInput']
+    ['newLecName','newLecPhone','newLecPass','newLecPassConfirm','lecFacSearchInput']
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
     ['lecFacBox','lecDeptBox','lecLevelBox','lecSemBox','lecCourseBox','lecGroupPreview']
@@ -1343,7 +1343,7 @@ function _lecOnDeptChange() {
     list.innerHTML = LEC_LEVELS.map(l => `
         <label class="lec-cb-label" style="min-width:72px;">
             <input type="checkbox" class="lec-level-cb" value="${l}">
-            <span>${l}L</span>
+            <span>${l}</span>
         </label>`).join('');
 
     box.style.display = 'block';
@@ -1516,15 +1516,15 @@ function _lecRenderGroupPreview() {
 // ── CREATE LECTURER ──────────────────────────────────────────────────
 async function createLecturerAccount() {
     const name    = document.getElementById('newLecName').value.trim();
-    const email   = document.getElementById('newLecEmail').value.trim().toLowerCase();
+    const phone   = document.getElementById('newLecPhone').value.trim();
     const pass    = document.getElementById('newLecPass').value;
     const confirm = document.getElementById('newLecPassConfirm').value;
     const msgEl   = document.getElementById('createLecMsg');
     const btn     = document.getElementById('createLecturerBtn');
 
-    if (!name || !email || !pass) {
+    if (!name || !phone || !pass) {
         msgEl.className = 'msg error';
-        msgEl.innerText = '⚠️ Name, email and password are required.';
+        msgEl.innerText = '⚠️ Name, phone number and password are required.';
         return;
     }
     if (pass.length < 8) {
@@ -1556,7 +1556,7 @@ async function createLecturerAccount() {
             headers: { 'Content-Type': 'application/json', 'apikey': S_KEY, 'Authorization': `Bearer ${S_KEY}`, 'x-admin-token': adminToken },
             body:    JSON.stringify({
                 action:           'create-lecturer',
-                name, email,
+                name, phone,
                 password:         pass,
                 assigned_courses: _lecGroups
             })
@@ -1625,7 +1625,7 @@ function _renderLecturerTable(lecturers) {
                     return `
                     <tr>
                         <td><strong>${sanitise(l.name)}</strong></td>
-                        <td style="color:var(--muted);">${sanitise(l.email)}</td>
+                        <td style="color:var(--muted);">${sanitise(l.phone)}</td>
                         <td style="text-align:center;">
                             <button class="btn btn-blue view-lec-assign-btn"
                                     data-name="${sanitise(l.name)}"
