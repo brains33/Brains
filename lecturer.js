@@ -231,7 +231,12 @@ async function loadStudents() {
         return;
     }
 
-    _currentFilter = { faculty, dept, level, semester, courseCode, courseTitle };
+    // Trim invisible whitespace that may have been stored in course_catalog values
+    const deptQ     = dept.trim();
+    const levelQ    = level.trim();
+    const semesterQ = semester.trim();
+
+    _currentFilter = { faculty, dept: deptQ, level: levelQ, semester: semesterQ, courseCode, courseTitle };
 
     const loadBtn = document.getElementById('lfLoadBtn');
     loadBtn.disabled = true; loadBtn.textContent = 'Loading...';
@@ -240,9 +245,9 @@ async function loadStudents() {
         const { data: students, error: stuErr } = await sb
             .from('students')
             .select('matrix_no, name')
-            .eq('department', dept)
-            .eq('level', level)
-            .eq('semester', semester)
+            .eq('department', deptQ)
+            .eq('level', levelQ)
+            .eq('semester', semesterQ)
             .order('name');
 
         if (stuErr) throw stuErr;
@@ -441,10 +446,15 @@ async function generateScoreSheetPDF(opts) {
 
     msgEl.className = 'msg'; msgEl.innerText = '⏳ Fetching data...';
 
+    // Trim invisible whitespace that may live in stored catalog values
+    const deptQ     = dept.trim();
+    const levelQ    = level.trim();
+    const semesterQ = semester.trim();
+
     try {
         const { data: students, error: stuErr } = await sb
             .from('students').select('matrix_no, name')
-            .eq('department', dept).eq('level', level).eq('semester', semester).order('name');
+            .eq('department', deptQ).eq('level', levelQ).eq('semester', semesterQ).order('name');
         if (stuErr) throw stuErr;
         if (!students || !students.length) {
             msgEl.className = 'msg error'; msgEl.innerText = '⚠️ No students found.'; return;
