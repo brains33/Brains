@@ -1099,14 +1099,12 @@ async function downloadResultsPDF() {
 </head>
 <body>
   <div class="header">
-    <div style="display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:8px;">
-      <img src="${INSTITUTION_LOGO}" alt="Institution Logo" style="width:52px; height:auto;">
-      <div style="text-align:left;">
-        <div style="font-weight:bold; color:#0f5132; font-size:0.88rem; letter-spacing:0.3px;">${INSTITUTION_NAME}</div>
-        <div style="font-size:0.66rem; color:#666;">${INSTITUTION_ADDRESS}</div>
-      </div>
+    <div style="display:flex; flex-direction:column; align-items:center; text-align:center; margin-bottom:8px;">
+      <img src="${INSTITUTION_LOGO}" alt="Institution Logo" style="width:55px; height:auto; margin-bottom:5px;">
+      <div style="font-weight:bold; color:#0f5132; font-size:0.88rem; letter-spacing:0.3px;">${INSTITUTION_NAME}</div>
+      <div style="font-size:0.66rem; color:#666;">${INSTITUTION_ADDRESS}</div>
     </div>
-    <h1>BRAINS AI — FULL ACADEMIC TRANSCRIPT</h1>
+    <h1>FULL ACADEMIC TRANSCRIPT</h1>
     <p style="font-size:0.8rem; color:#0f5132; font-weight:bold; letter-spacing:0.5px;">CUMULATIVE RESULT RECORD — ALL SEMESTERS</p>
     <p>POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
   </div>
@@ -1125,7 +1123,7 @@ async function downloadResultsPDF() {
     A — Excellent &nbsp;|&nbsp; B — Very Good &nbsp;|&nbsp; C — Good &nbsp;|&nbsp; D — Pass &nbsp;|&nbsp; F — Fail
     <br>Distinction ≥ 3.50 &nbsp;|&nbsp; Upper Credit ≥ 3.00 &nbsp;|&nbsp; Lower Credit ≥ 2.00 &nbsp;|&nbsp; Pass ≥ 1.00 &nbsp;|&nbsp; Fail &lt; 1.00
   </div>
-  <div class="footer">BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This document is auto-generated.</div>
+  <div class="footer">CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This document is auto-generated.</div>
 </body></html>`;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return alert("⚠️ Pop-up blocked! Please allow pop-ups for this site in your browser, then try again.");
@@ -1211,14 +1209,12 @@ async function downloadSemesterSlipPDF() {
 </head>
 <body>
   <div class="header">
-    <div style="display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:8px;">
-      <img src="${INSTITUTION_LOGO}" alt="Institution Logo" style="width:52px; height:auto;">
-      <div style="text-align:left;">
-        <div style="font-weight:bold; color:#0f5132; font-size:0.88rem; letter-spacing:0.3px;">${INSTITUTION_NAME}</div>
-        <div style="font-size:0.66rem; color:#666;">${INSTITUTION_ADDRESS}</div>
-      </div>
+    <div style="display:flex; flex-direction:column; align-items:center; text-align:center; margin-bottom:8px;">
+      <img src="${INSTITUTION_LOGO}" alt="Institution Logo" style="width:55px; height:auto; margin-bottom:5px;">
+      <div style="font-weight:bold; color:#0f5132; font-size:0.88rem; letter-spacing:0.3px;">${INSTITUTION_NAME}</div>
+      <div style="font-size:0.66rem; color:#666;">${INSTITUTION_ADDRESS}</div>
     </div>
-    <h1>BRAINS AI — SEMESTER RESULT SLIP</h1>
+    <h1>SEMESTER RESULT SLIP</h1>
     <h2 style="color:#0f5132; font-size:1rem; font-weight:bold; margin-top:4px;">${localData.semester} Semester &nbsp;|&nbsp; ${localData.level}L &nbsp;|&nbsp; ${localData.dept}</h2>
     <p style="font-size:0.72rem; color:#888; margin-top:2px; font-style:italic;">Single Semester Record — Not a Full Transcript</p>
     <p>POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString('en-NG', {day:'2-digit', month:'long', year:'numeric'})}</p>
@@ -1247,7 +1243,7 @@ async function downloadSemesterSlipPDF() {
         &nbsp;<br><strong>Dean / Registrar</strong>Signature &amp; Stamp
     </div>
   </div>
-  <div class="footer">BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This slip is auto-generated and subject to ratification.</div>
+  <div class="footer">CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This slip is auto-generated and subject to ratification.</div>
 </body></html>`;
 
     const printWindow = window.open('', '_blank');
@@ -1343,15 +1339,13 @@ async function downloadExamCardPDF() {
 </head>
 <body>
   <div class="header">
-    <div class="header-text">
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-        <img src="${INSTITUTION_LOGO}" alt="Institution Logo" style="width:42px; height:auto;">
-        <div>
-          <div style="font-weight:bold; color:#0f5132; font-size:0.8rem; letter-spacing:0.3px;">${INSTITUTION_NAME}</div>
-          <div style="font-size:0.62rem; color:#666;">${INSTITUTION_ADDRESS}</div>
-        </div>
+    <div class="header-text" style="text-align:center;">
+      <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:6px;">
+        <img src="${INSTITUTION_LOGO}" alt="Institution Logo" style="width:44px; height:auto; margin-bottom:4px;">
+        <div style="font-weight:bold; color:#0f5132; font-size:0.8rem; letter-spacing:0.3px;">${INSTITUTION_NAME}</div>
+        <div style="font-size:0.62rem; color:#666;">${INSTITUTION_ADDRESS}</div>
       </div>
-      <h1>BRAINS AI — STUDENT EXAM CARD</h1>
+      <h1>STUDENT EXAM CARD</h1>
       <p>Official CBT Examination Hall Ticket &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
       <p style="margin-top:4px; color:#0f5132; font-size:0.7rem; font-weight:bold;">
         Academic Session: ${new Date().getFullYear()}/${new Date().getFullYear() + 1}
@@ -1398,7 +1392,7 @@ async function downloadExamCardPDF() {
   </div>
   
   <div class="footer">
-    BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This card is non-transferable.
+    CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp; This card is non-transferable.
   </div>
 </body>
 </html>`;
@@ -1485,15 +1479,13 @@ async function downloadScheduledExamCardPDF() {
 </head>
 <body>
   <div class="header">
-    <div class="header-text">
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-        <img src="${INSTITUTION_LOGO}" alt="Institution Logo" style="width:42px; height:auto;">
-        <div>
-          <div style="font-weight:bold; color:#0f5132; font-size:0.8rem; letter-spacing:0.3px;">${INSTITUTION_NAME}</div>
-          <div style="font-size:0.62rem; color:#666;">${INSTITUTION_ADDRESS}</div>
-        </div>
+    <div class="header-text" style="text-align:center;">
+      <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:6px;">
+        <img src="${INSTITUTION_LOGO}" alt="Institution Logo" style="width:44px; height:auto; margin-bottom:4px;">
+        <div style="font-weight:bold; color:#0f5132; font-size:0.8rem; letter-spacing:0.3px;">${INSTITUTION_NAME}</div>
+        <div style="font-size:0.62rem; color:#666;">${INSTITUTION_ADDRESS}</div>
       </div>
-      <h1>BRAINS AI — SCHEDULED EXAM CARD</h1>
+      <h1>SCHEDULED EXAM CARD</h1>
       <p>Official Physical Examination Hall Ticket &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</p>
       <p style="margin-top:4px; color:#0f5132; font-size:0.7rem; font-weight:bold;">
         Academic Session: ${new Date().getFullYear()}/${new Date().getFullYear() + 1}
@@ -1534,7 +1526,7 @@ async function downloadScheduledExamCardPDF() {
     <div class="sign-box"><div class="sign-line"></div><p>HOD / Dean Signature &amp; Date</p></div>
   </div>
   <div class="footer">
-    BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp;
+    CBT SYSTEM © ${new Date().getFullYear()} &nbsp;|&nbsp; POWERED BY MU'UJIZA DATA &nbsp;|&nbsp;
     This card is non-transferable and must be presented at every examination sitting.
   </div>
 </body></html>`;
