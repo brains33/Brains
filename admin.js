@@ -97,7 +97,6 @@ function showSection(name) {
         markadjust: 'Mark Adjustment',
         carryover: 'Carryover Exams',
         recyclebin: 'Recycle Bin',
-        catalog: 'Course Catalog',
         registration: 'Course Registration'
     };
 
@@ -105,9 +104,6 @@ function showSection(name) {
 
     // Load recycle bin data when switching to that section
     if (name === 'recyclebin') loadRecycleBin();
-
-    // Load course catalog when switching to that section
-    if (name === 'catalog') loadCourseCatalog();
 
     // Load registration control when switching to that section
     if (name === 'registration') loadRegistrationSection();
@@ -174,20 +170,6 @@ document.getElementById('fullProctorGrid')?.addEventListener('click', (e) => {
     document.querySelectorAll('.quick-btn[data-section]').forEach(btn => {
         btn.addEventListener('click', () => showSection(btn.getAttribute('data-section')));
     });
-    
-    // Course Catalog listeners
-    document.getElementById('catFaculty')?.addEventListener('change', updateCatalogDepartments);
-    document.getElementById('catAddBtn')?.addEventListener('click', addCatalogEntry);
-    document.getElementById('catList')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-        const id = btn.getAttribute('data-cat-id');
-        if (btn.classList.contains('delete-cat-btn')) deleteCatalogEntry(id);
-    });
-    document.getElementById('catFilterFaculty')?.addEventListener('change', updateCatalogFilterDepts);
-    document.getElementById('catFilterDept')?.addEventListener('change', loadCourseCatalog);
-    document.getElementById('catFilterLevel')?.addEventListener('change', loadCourseCatalog);
-    document.getElementById('catFilterSemester')?.addEventListener('change', loadCourseCatalog);
 
     // Course Registration Control listeners
     document.getElementById('regCtrlFaculty')?.addEventListener('change', () => {
@@ -763,16 +745,6 @@ if (rbLevelEl) rbLevelEl.innerHTML = '<option value="">-- All Levels --</option>
                 LEVEL_OPTIONS.map(l => `<option value="${l}">${l}</option>`).join('');
         }
 
-        // Catalog form faculty dropdown
-        const catFacEl = document.getElementById('catFaculty');
-        if (catFacEl) catFacEl.innerHTML = '<option value="">-- Select Faculty --</option>' +
-            window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
-
-        // Catalog filter faculty dropdown
-        const catFilterFacEl = document.getElementById('catFilterFaculty');
-        if (catFilterFacEl) catFilterFacEl.innerHTML = '<option value="">-- All Faculties --</option>' +
-            window.allFaculties.map(f => `<option value="${escapeAttr(f.name)}">${sanitise(f.name)}</option>`).join('');
-
         loadStaticDropdowns();
         if (typeof loadUsers === "function") loadUsers();
     } catch (err) {
@@ -1293,13 +1265,10 @@ async function saveAdjustedScore(resultId, newScore, max = 100) {
     alert("✅ Score updated successfully!");
     fetchFreshData();
 }
-// ── GRADING HELPER ────────────────────────────────────────────────────
-function computeGrade(total) {
-    if (total >= 70) return { grade: 'A', remark: 'Excellent',  color: '#00ff88' };
-    if (total >= 60) return { grade: 'B', remark: 'Very Good',  color: '#4ade80' };
-    if (total >= 50) return { grade: 'C', remark: 'Good',       color: '#facc15' };
-    if (total >= 40) return { grade: 'D', remark: 'Pass',       color: '#fb923c' };
-    return            { grade: 'F', remark: 'Fail',       color: '#ff4444' };
+// ── RESULT HELPER (Pass/Fail only, threshold = 50/100) ───────────────
+function computeGrade(score) {
+    if (score >= 50) return { remark: 'Pass', color: '#00ff88' };
+    return             { remark: 'Fail', color: '#ff4444' };
 }
 
 function renderResultsUI() {
@@ -1307,14 +1276,13 @@ function renderResultsUI() {
     if (!grid) return;
     const searchTerm = document.getElementById("courseSearchInput").value.toLowerCase();
 
-    // Group ALL results by course, then by matrix_no so we can pair CA + Exam
+    // Group ALL results by course, then by matrix_no — one score/100 per student per course
     const groupedByCourse = allResults.reduce((acc, cur) => {
         const key = cur.subject || "Unknown Course";
         if (!acc[key]) acc[key] = {};
         const mno = cur.matrix_no;
-        if (!acc[key][mno]) acc[key][mno] = { name: cur.name, dept: cur.department, semester: cur.semester, matrix_no: mno, ca: null, exam: null };
-        if (cur.is_ca) acc[key][mno].ca = cur;
-        else           acc[key][mno].exam = cur;
+        if (!acc[key][mno]) acc[key][mno] = { name: cur.name, dept: cur.department, semester: cur.semester, matrix_no: mno, result: null };
+        acc[key][mno].result = cur;
         return acc;
     }, {});
 
@@ -1323,16 +1291,10 @@ function renderResultsUI() {
         .map(course => {
             const students = Object.values(groupedByCourse[course]);
             const rows = students.map(s => {
-                const caRaw   = s.ca   ? parseFloat(s.ca.score)   : null;
-                const examRaw = s.exam ? parseFloat(s.exam.score) : null;
-                // CA and Exam scores are stored as direct /30 and /70 values (no weighting needed)
-                const caScore   = caRaw   !== null ? Math.min(30, Math.round(caRaw))   : null;
-                const examScore = examRaw !== null ? Math.min(70, Math.round(examRaw)) : null;
-                const total = Math.min(100, (caScore ?? 0) + (examScore ?? 0));
-                const { grade, remark, color } = computeGrade(total);
-                // editable raw inputs (admin edits the raw score, not the weighted)
-                const caId   = s.ca   ? s.ca.id   : null;
-                const examId = s.exam ? s.exam.id : null;
+                const raw = s.result ? parseFloat(s.result.score) : null;
+                const score = raw !== null ? Math.min(100, Math.round(raw)) : null;
+                const { remark, color } = computeGrade(score ?? 0);
+                const resultId = s.result ? s.result.id : null;
                 return `
                 <tr style="border-bottom: 1px solid #222;">
                     <td style="padding:8px; text-transform:uppercase;">${safeValue(s.name)}</td>
@@ -1340,27 +1302,16 @@ function renderResultsUI() {
                     <td>${safeValue(s.dept)}</td>
                     <td>${safeValue(s.semester || '1st')}</td>
                     <td style="text-align:center;">
-                        ${caId ? `<div style="display:flex;align-items:center;gap:4px;">
-                            <input type="number" min="0" max="30" value="${s.ca.score}"
-                                class="score-input" data-result-id="${caId}" data-max="30"
-                                style="width:52px;padding:3px 5px;border-radius:4px;border:1px solid #4ade80;background:#0a2e1a;color:#4ade80;font-weight:bold;text-align:center;font-size:0.85em;">
-                            <button class="save-score-btn" data-result-id="${caId}" style="background:#4ade80;color:#000;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
+                        ${resultId ? `<div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+                            <input type="number" min="0" max="100" value="${s.result.score}"
+                                class="score-input" data-result-id="${resultId}" data-max="100"
+                                style="width:56px;padding:3px 5px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.85em;">
+                            <button class="save-score-btn" data-result-id="${resultId}" style="background:#00ff88;color:#000;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
                         </div>` : '<span style="color:#555;">—</span>'}
                     </td>
-                    <td style="text-align:center;">
-                        ${examId ? `<div style="display:flex;align-items:center;gap:4px;">
-                            <input type="number" min="0" max="70" value="${s.exam.score}"
-                                class="score-input" data-result-id="${examId}" data-max="70"
-                                style="width:52px;padding:3px 5px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.85em;">
-                            <button class="save-score-btn" data-result-id="${examId}" style="background:#00ff88;color:#000;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
-                        </div>` : '<span style="color:#555;">—</span>'}
-                    </td>
-                    <td style="text-align:center; font-weight:bold; color:${color};">${total}</td>
-                    <td style="text-align:center; font-weight:bold; color:${color};">${grade}</td>
-                    <td style="text-align:center; font-size:0.8em; color:${color};">${remark}</td>
+                    <td style="text-align:center; font-size:0.8em; color:${color}; font-weight:bold;">${remark}</td>
                     <td style="text-align:right;">
-                        ${caId   ? `<button data-result-id="${caId}"   data-context="lecturer" class="delete-result-btn" style="background:#ff4444;color:white;border:none;padding:4px 7px;border-radius:4px;cursor:pointer;font-size:0.75rem;margin-bottom:2px;">🗑️CA</button>` : ''}
-                        ${examId ? `<button data-result-id="${examId}" data-context="lecturer" class="delete-result-btn" style="background:#ff4444;color:white;border:none;padding:4px 7px;border-radius:4px;cursor:pointer;font-size:0.75rem;">🗑️EX</button>` : ''}
+                        ${resultId ? `<button data-result-id="${resultId}" data-context="lecturer" class="delete-result-btn" style="background:#ff4444;color:white;border:none;padding:4px 7px;border-radius:4px;cursor:pointer;font-size:0.75rem;">🗑️</button>` : ''}
                     </td>
                 </tr>`;
             }).join('');
@@ -1371,10 +1322,7 @@ function renderResultsUI() {
                     <table style="width:100%; border-collapse:collapse; font-size:0.82em; color:white;">
                         <thead><tr style="text-align:left; border-bottom:1px solid #444; color:#00ff88;">
                             <th style="padding:8px;">STUDENT NAME</th><th>MATRIX NO</th><th>DEPT</th><th>SEM</th>
-                            <th style="text-align:center;">CA/30</th>
-                            <th style="text-align:center;">EXAM/70</th>
-                            <th style="text-align:center;">TOTAL</th>
-                            <th style="text-align:center;">GRADE</th>
+                            <th style="text-align:center;">SCORE/100</th>
                             <th style="text-align:center;">REMARK</th>
                             <th style="text-align:right;">ACTION</th>
                         </tr></thead>
@@ -1392,9 +1340,7 @@ function renderMasterUI() {
         const key = cur.name.toUpperCase();
         if (!acc[key]) acc[key] = { info: cur, courses: {} };
         const course = (cur.subject || cur.course || 'N/A').toUpperCase();
-        if (!acc[key].courses[course]) acc[key].courses[course] = { ca: null, exam: null };
-        if (cur.is_ca) acc[key].courses[course].ca = cur;
-        else           acc[key].courses[course].exam = cur;
+        acc[key].courses[course] = cur;
         return acc;
     }, {});
 
@@ -1408,49 +1354,33 @@ function renderMasterUI() {
         let grandTotal = 0, courseCount = 0;
 
         const rows = Object.entries(student.courses).map(([course, data]) => {
-            const caRaw   = data.ca   ? parseFloat(data.ca.score)   : null;
-            const examRaw = data.exam ? parseFloat(data.exam.score) : null;
-            // CA and Exam scores are stored as direct /30 and /70 values (no weighting needed)
-            const caScore   = caRaw   !== null ? Math.min(30, Math.round(caRaw))   : null;
-            const examScore = examRaw !== null ? Math.min(70, Math.round(examRaw)) : null;
-            const total = Math.min(100, (caScore ?? 0) + (examScore ?? 0));
-            const { grade, remark, color } = computeGrade(total);
-            grandTotal += total;
+            const raw = data ? parseFloat(data.score) : null;
+            const score = raw !== null ? Math.min(100, Math.round(raw)) : null;
+            const { remark, color } = computeGrade(score ?? 0);
+            grandTotal += (score ?? 0);
             courseCount++;
-            const caId   = data.ca   ? data.ca.id   : null;
-            const examId = data.exam ? data.exam.id : null;
+            const resultId = data ? data.id : null;
             return `
             <tr style="border-bottom:1px solid #222;">
                 <td style="padding:8px;">${course}</td>
-                <td style="text-align:center;">${data.ca ? data.ca.semester || '—' : (data.exam ? data.exam.semester || '—' : '—')}</td>
+                <td style="text-align:center;">${data ? (data.semester || '—') : '—'}</td>
                 <td style="text-align:center;">
-                    ${caId ? `<div style="display:flex;align-items:center;gap:4px;">
-                        <input type="number" min="0" max="30" value="${data.ca.score}"
-                            class="score-input" data-result-id="${caId}" data-max="30"
-                            style="width:50px;padding:3px 5px;border-radius:4px;border:1px solid #4ade80;background:#0a2e1a;color:#4ade80;font-weight:bold;text-align:center;font-size:0.85em;">
-                        <button class="save-score-btn" data-result-id="${caId}" style="background:#4ade80;color:#000;border:none;padding:2px 5px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
+                    ${resultId ? `<div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+                        <input type="number" min="0" max="100" value="${data.score}"
+                            class="score-input" data-result-id="${resultId}" data-max="100"
+                            style="width:54px;padding:3px 5px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.85em;">
+                        <button class="save-score-btn" data-result-id="${resultId}" style="background:#00ff88;color:#000;border:none;padding:2px 5px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
                     </div>` : '<span style="color:#555;">—</span>'}
                 </td>
-                <td style="text-align:center;">
-                    ${examId ? `<div style="display:flex;align-items:center;gap:4px;">
-                        <input type="number" min="0" max="70" value="${data.exam.score}"
-                            class="score-input" data-result-id="${examId}" data-max="70"
-                            style="width:50px;padding:3px 5px;border-radius:4px;border:1px solid #00ff88;background:#0a2e1a;color:#00ff88;font-weight:bold;text-align:center;font-size:0.85em;">
-                        <button class="save-score-btn" data-result-id="${examId}" style="background:#00ff88;color:#000;border:none;padding:2px 5px;border-radius:4px;cursor:pointer;font-size:0.7rem;">💾</button>
-                    </div>` : '<span style="color:#555;">—</span>'}
-                </td>
-                <td style="text-align:center; font-weight:bold; color:${color};">${total}</td>
-                <td style="text-align:center; font-weight:bold; color:${color};">${grade}</td>
-                <td style="text-align:center; font-size:0.82em; color:${color};">${remark}</td>
+                <td style="text-align:center; font-size:0.82em; color:${color}; font-weight:bold;">${remark}</td>
                 <td style="text-align:right;">
-                    ${caId   ? `<button data-result-id="${caId}"   data-context="master" class="delete-result-btn" style="background:none;border:1px solid #ff4444;color:#ff4444;cursor:pointer;padding:3px 7px;border-radius:4px;font-size:0.72rem;margin-bottom:2px;">🗑️CA</button>` : ''}
-                    ${examId ? `<button data-result-id="${examId}" data-context="master" class="delete-result-btn" style="background:none;border:1px solid #ff4444;color:#ff4444;cursor:pointer;padding:3px 7px;border-radius:4px;font-size:0.72rem;">🗑️EX</button>` : ''}
+                    ${resultId ? `<button data-result-id="${resultId}" data-context="master" class="delete-result-btn" style="background:none;border:1px solid #ff4444;color:#ff4444;cursor:pointer;padding:3px 7px;border-radius:4px;font-size:0.72rem;">🗑️</button>` : ''}
                 </td>
             </tr>`;
         }).join('');
 
         const avgTotal = courseCount > 0 ? Math.round(grandTotal / courseCount) : 0;
-        const { grade: avgGrade, remark: avgRemark, color: avgColor } = computeGrade(avgTotal);
+        const { remark: avgRemark, color: avgColor } = computeGrade(avgTotal);
 
         return `
         <div style="background:#111; margin-bottom:25px; border-radius:12px; border:1px solid #333; overflow:hidden; border-left:5px solid #00ff88;">
@@ -1459,10 +1389,7 @@ function renderMasterUI() {
                 <table style="width:100%; color:white; font-size:0.88em; border-collapse:collapse;">
                     <thead><tr style="color:#00ff88; text-align:left; border-bottom:1px solid #333;">
                         <th style="padding:8px;">COURSE</th><th>SEM</th>
-                        <th style="text-align:center;">CA/30</th>
-                        <th style="text-align:center;">EXAM/70</th>
-                        <th style="text-align:center;">TOTAL</th>
-                        <th style="text-align:center;">GRADE</th>
+                        <th style="text-align:center;">SCORE/100</th>
                         <th style="text-align:center;">REMARK</th>
                         <th style="text-align:right;">ACTION</th>
                     </tr></thead>
@@ -1471,12 +1398,12 @@ function renderMasterUI() {
                 <div style="margin-top:15px; padding:12px 15px; background:#1a1a1a; border-radius:8px; border-top:2px solid #333; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                     <div style="font-size:0.9em; color:#ccc;">
                         📊 <strong style="color:white;">Courses:</strong> ${courseCount} &nbsp;|&nbsp;
-                        <strong style="color:white;">Avg Total:</strong> ${avgTotal}/100
+                        <strong style="color:white;">Avg Score:</strong> ${avgTotal}/100
                     </div>
                     <div style="font-size:0.95em; font-weight:bold; padding:6px 20px; border-radius:20px;
-                                background:${avgGrade === 'F' ? 'rgba(255,68,68,0.15)' : 'rgba(0,255,136,0.15)'};
+                                background:${avgRemark === 'Fail' ? 'rgba(255,68,68,0.15)' : 'rgba(0,255,136,0.15)'};
                                 color:${avgColor}; border:2px solid ${avgColor};">
-                        ${avgGrade} — ${avgRemark}
+                        ${avgRemark}
                     </div>
                 </div>
             </div>
@@ -1789,15 +1716,20 @@ async function setSlipRelease(released) {
 function generateBrandedPDF(title, filteredData) {
     if (filteredData.length === 0) return alert("Search for a record to print first!");
     const win = window.open('', '_blank');
-    const rows = filteredData.map((r, i) => `
+    const rows = filteredData.map((r, i) => {
+        const score = Math.min(100, Math.round(parseFloat(r.score) || 0));
+        const { remark } = computeGrade(score);
+        return `
         <tr>
             <td>${i+1}</td>
             <td style="text-transform: uppercase;">${safeValue(r.name)}</td>
             <td>${safeValue(r.matrix_no)}</td>
             <td>${safeValue(r.subject)}</td>
             <td>${safeValue(r.semester || '1st')}</td>
-            <td style="font-weight:bold;">${r.score}%</td>
-        </tr>`).join('');
+            <td style="font-weight:bold;">${score}</td>
+            <td style="font-weight:bold; color:${remark === 'Pass' ? '#0f5132' : '#cc0000'};">${remark}</td>
+        </tr>`;
+    }).join('');
 
     win.document.write(`
         <html><head><title>${safeValue(title)}</title><style>
@@ -1810,7 +1742,7 @@ function generateBrandedPDF(title, filteredData) {
         .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
         </style></head><body>
         <div class="header"><h1>BRAINS ACADEMIC INTELLIGENCE: ${safeValue(title)}</h1><p>OFFICIAL ACADEMIC RECORD | Generated: ${new Date().toLocaleDateString()}</p></div>
-        <table><thead><tr><th>S/N</th><th>NAME</th><th>ID</th><th>COURSE</th><th>SEM</th><th>SCORE</th></tr></thead><tbody>${rows}</tbody></table>
+        <table><thead><tr><th>S/N</th><th>NAME</th><th>ID</th><th>COURSE</th><th>SEM</th><th>SCORE</th><th>REMARK</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="footer">POWERED BY MU'UJIZA DATA</div>
         </body></html>`);
     win.document.close();
@@ -1824,77 +1756,29 @@ function printCoursePDF() {
     else generateBrandedPDF("COURSE PERFORMANCE REPORT", filtered);
 }
 
-function gradePoint(grade) {
-    // Nigerian polytechnic / college of health grading scale (5-point) — NUC / NCCE standard
-    if (grade === 'A') return 5;
-    if (grade === 'B') return 4;
-    if (grade === 'C') return 3;
-    if (grade === 'D') return 2;
-    return 0; // F
-}
-
-function computeGPA(courseEntries) {
-    let totalQP = 0, totalUnits = 0;
-    for (const c of courseEntries) {
-        if (c.grade === 'F' || c.creditUnits === 0) {
-            totalQP    += 0;
-            totalUnits += c.creditUnits;
-        } else {
-            totalQP    += gradePoint(c.grade) * c.creditUnits;
-            totalUnits += c.creditUnits;
-        }
-    }
-    if (totalUnits === 0) return { gpa: null, totalUnits: 0, totalQP: 0 };
-    return { gpa: (totalQP / totalUnits).toFixed(2), totalUnits, totalQP };
-}
-
-function remarkFor(gpa) {
-    const g = parseFloat(gpa);
-    if (g >= 3.5) return 'Distinction';
-    if (g >= 3.0) return 'Upper Credit';
-    if (g >= 2.0) return 'Lower Credit';
-    if (g >= 1.0) return 'Pass';
-    return 'Fail';
-}
-
-function buildAdminSemesterTableHTML(semesterLabel, courseMap, catalogMap) {
-    const courseEntries = [];
+function buildAdminSemesterTableHTML(semesterLabel, courseMap) {
     let rowIdx = 0;
+    let passCount = 0, failCount = 0;
     const rows = Object.entries(courseMap).map(([course, data]) => {
         rowIdx++;
-        const caScore   = data.ca   ? Math.min(30, Math.round(parseFloat(data.ca.score)))   : 0;
-        const examScore = data.exam ? Math.min(70, Math.round(parseFloat(data.exam.score))) : 0;
-        const total     = Math.min(100, caScore + examScore);
-        const { grade, remark } = computeGrade(total);
-        const creditUnits = catalogMap[course] !== undefined ? catalogMap[course] : 3;
-        const gp          = gradePoint(grade);
-        const qp          = gp * creditUnits;
-        const gradeColor  = grade === 'F' ? '#cc0000' : grade === 'D' ? '#b45309' : '#0f5132';
-        const bg          = rowIdx % 2 === 0 ? '#f9f9f9' : '#fff';
-
-        courseEntries.push({ course, total, grade, creditUnits, gp, qp });
+        const score = data ? Math.min(100, Math.round(parseFloat(data.score))) : 0;
+        const { remark } = computeGrade(score);
+        if (remark === 'Pass') passCount++; else failCount++;
+        const remarkColor = remark === 'Pass' ? '#0f5132' : '#cc0000';
+        const bg = rowIdx % 2 === 0 ? '#f9f9f9' : '#fff';
 
         return `
         <tr style="background:${bg}">
             <td style="text-align:center;">${rowIdx}</td>
             <td style="font-weight:bold; letter-spacing:0.4px;">${safeValue(course)}</td>
-            <td style="text-align:center;">${data.ca   ? caScore   : '—'}</td>
-            <td style="text-align:center;">${data.exam ? examScore : '—'}</td>
-            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${total}</td>
-            <td style="text-align:center; font-weight:bold; color:${gradeColor};">${grade}</td>
-            <td style="text-align:center; font-weight:bold; color:#555;">${creditUnits}</td>
-            <td style="text-align:center; color:#555;">${gp}</td>
-            <td style="text-align:center; color:#555;">${qp}</td>
+            <td style="text-align:center; font-weight:bold; color:${remarkColor};">${score}</td>
             <td style="text-align:center;">
-                <span class="remark-pill" style="background:${grade === 'F' ? '#fee2e2' : '#d1fae5'}; color:${gradeColor};">
+                <span class="remark-pill" style="background:${remark === 'Fail' ? '#fee2e2' : '#d1fae5'}; color:${remarkColor};">
                     ${remark}
                 </span>
             </td>
         </tr>`;
     }).join('');
-
-    const { gpa, totalUnits, totalQP } = computeGPA(courseEntries);
-    const gpaColor = gpa === null ? '#555' : parseFloat(gpa) >= 3.5 ? '#0f5132' : parseFloat(gpa) >= 2.0 ? '#b45309' : '#cc0000';
 
     const semBlock = `
     <div class="sem-block">
@@ -1902,28 +1786,22 @@ function buildAdminSemesterTableHTML(semesterLabel, courseMap, catalogMap) {
       <table>
         <thead>
           <tr>
-            <th style="width:28px;">#</th>
-            <th>Course Code</th>
-            <th style="width:52px; text-align:center;">CA (30)</th>
-            <th style="width:56px; text-align:center;">Exam (70)</th>
-            <th style="width:56px; text-align:center;">Total</th>
-            <th style="width:44px; text-align:center;">Grade</th>
-            <th style="width:40px; text-align:center;">Units</th>
-            <th style="width:32px; text-align:center;">GP</th>
-            <th style="width:32px; text-align:center;">QP</th>
+            <th style="width:28px;">S/N</th>
+            <th>Course</th>
+            <th style="width:56px; text-align:center;">Score</th>
             <th style="width:78px; text-align:center;">Remark</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      ${gpa !== null ? `
       <div class="sem-gpa-line">
-        Total Units: <strong>${totalUnits}</strong> &nbsp;|&nbsp; Total QP: <strong>${totalQP}</strong> &nbsp;|&nbsp;
-        GPA (${safeValue(semesterLabel)} Semester): <strong style="color:${gpaColor}; font-size:1rem;">${gpa}</strong> (${remarkFor(gpa)})
-      </div>` : ''}
+        Courses: <strong>${rowIdx}</strong> &nbsp;|&nbsp;
+        <span style="color:#0f5132;">Passed: <strong>${passCount}</strong></span> &nbsp;|&nbsp;
+        <span style="color:#cc0000;">Failed: <strong>${failCount}</strong></span>
+      </div>
     </div>`;
 
-    return { html: semBlock, totalUnits, totalQP };
+    return { html: semBlock, passCount, failCount };
 }
 
 async function printMasterPDF() {
@@ -1939,70 +1817,30 @@ async function printMasterPDF() {
         return acc;
     }, {});
 
-    // Fetch credit units from the course_catalog for every (dept, level, course) combo involved
-    let catalogMap = {};
-    try {
-        const deptLevelPairs = [...new Set(filtered.map(r => `${(r.department || '').toUpperCase().trim()}__${r.level || ''}`))];
-        const courseKeys = [...new Set(filtered.map(r => (r.subject || r.course || 'N/A').toUpperCase()))];
-        const { data: catalog } = await sb.from('course_catalog')
-            .select('course_code, credit_units, department, level')
-            .in('course_code', courseKeys);
-        if (catalog) {
-            catalog.forEach(c => {
-                const k = `${(c.department || '').toUpperCase().trim()}__${c.level}__${c.course_code.toUpperCase()}`;
-                catalogMap[k] = c.credit_units;
-            });
-        }
-    } catch (e) { /* catalog may not exist yet — fallback to 3 units */ }
-
     const studentBlocks = Object.keys(masterData).map(name => {
         const student = masterData[name];
         const dept = student.info.department || 'N/A';
         const level = student.info.level || 'N/A';
 
-        // Build a per-student catalog lookup keyed by course only (matches their own dept/level)
-        const studentCatalogMap = {};
-        student.results.forEach(r => {
-            const course = (r.subject || r.course || 'N/A').toUpperCase();
-            const k = `${(dept || '').toUpperCase().trim()}__${level}__${course}`;
-            if (catalogMap[k] !== undefined) studentCatalogMap[course] = catalogMap[k];
-        });
-
-        // Group this student's results by semester, then by course (pair CA + Exam)
+        // Group this student's results by semester, then by course
         const semesterMap = {};
         for (const r of student.results) {
             const sem = r.semester || '1st';
             const key = (r.subject || r.course || 'N/A').toUpperCase();
             if (!semesterMap[sem]) semesterMap[sem] = {};
-            if (!semesterMap[sem][key]) semesterMap[sem][key] = { exam: null, ca: null };
-            if (r.is_ca) semesterMap[sem][key].ca   = r;
-            else         semesterMap[sem][key].exam = r;
+            semesterMap[sem][key] = r;
         }
 
         const semesterOrder = ['1st', '2nd'].filter(s => semesterMap[s]);
         Object.keys(semesterMap).forEach(s => { if (!semesterOrder.includes(s)) semesterOrder.push(s); });
 
-        let combinedUnits = 0, combinedQP = 0;
+        let totalPassed = 0, totalFailed = 0;
         const semesterBlocksHTML = semesterOrder.map(sem => {
-            const { html, totalUnits, totalQP } = buildAdminSemesterTableHTML(sem, semesterMap[sem], studentCatalogMap);
-            combinedUnits += totalUnits;
-            combinedQP    += totalQP;
+            const { html, passCount, failCount } = buildAdminSemesterTableHTML(sem, semesterMap[sem]);
+            totalPassed += passCount;
+            totalFailed += failCount;
             return html;
         }).join('');
-
-        const cgpa = combinedUnits > 0 ? (combinedQP / combinedUnits).toFixed(2) : null;
-        const cgpaColor = cgpa === null ? '#555' : parseFloat(cgpa) >= 3.5 ? '#0f5132' : parseFloat(cgpa) >= 2.0 ? '#b45309' : '#cc0000';
-        const cgpaBlock = cgpa !== null ? `
-            <div class="gpa-box">
-                <div class="gpa-item"><label>Total Credit Units</label><span>${combinedUnits}</span></div>
-                <div class="gpa-item"><label>Total Quality Points</label><span>${combinedQP}</span></div>
-                <div class="gpa-item"><label>Cumulative GPA (CGPA)</label>
-                    <span style="color:${cgpaColor}; font-size:1.4rem;">${cgpa}</span>
-                </div>
-                <div class="gpa-item"><label>CGPA Remark</label>
-                    <span style="color:${cgpaColor};">${remarkFor(cgpa)}</span>
-                </div>
-            </div>` : '';
 
         // QR data – academic summary
         const qrData = encodeURIComponent([
@@ -2010,8 +1848,8 @@ async function printMasterPDF() {
             `MATRIC: ${student.info.matrix_no}`,
             `DEPT: ${dept}`,
             `LEVEL: ${level}`,
-            `CGPA: ${cgpa !== null ? cgpa : 'N/A'}`,
-            `REMARK: ${cgpa !== null ? remarkFor(cgpa) : 'N/A'}`,
+            `PASSED: ${totalPassed}`,
+            `FAILED: ${totalFailed}`,
             `VERIFIED BY: BRAINS ACADEMIC INTELLIGENCE`
         ].join(' | '));
         const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${qrData}`;
@@ -2038,7 +1876,9 @@ async function printMasterPDF() {
 
                 <div style="padding: 10px 16px;">
                     ${semesterBlocksHTML}
-                    ${cgpaBlock}
+                    <div style="margin-top:10px; padding:9px 14px; border:2px solid #0f5132; border-radius:8px; background:#f0fdf4; font-size:0.78rem; color:#14532d; font-weight:bold;">
+                        Overall: ${totalPassed + totalFailed} course(s) &nbsp;|&nbsp; Passed: ${totalPassed} &nbsp;|&nbsp; Failed: ${totalFailed}
+                    </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 13px 16px; border-top: 1px solid #eee;">
@@ -2074,9 +1914,6 @@ async function printMasterPDF() {
         td { border:1px solid #ddd; padding:5px 7px; font-size:0.72rem; }
         .remark-pill { display:inline-block; padding:2px 7px; border-radius:10px; font-size:0.65rem; font-weight:bold; }
         .sem-gpa-line { margin-top:4px; padding:5px 9px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.68rem; color:#14532d; }
-        .gpa-box { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px 16px; border:2px solid #0f5132; border-radius:10px; padding:11px 16px; margin-top:10px; background:#f0fdf4; page-break-inside: avoid; }
-        .gpa-item label { display:block; font-size:0.6rem; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; }
-        .gpa-item span { font-weight:bold; color:#0f5132; font-size:0.95rem; }
         .key-box { max-width: 1000px; margin: 18px auto 0 auto; padding:10px 16px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:0.68rem; color:#14532d; }
         .key-box strong { display:block; margin-bottom:3px; }
         .page-footer { text-align: center; margin-top: 24px; padding-top: 8px; font-size: 0.62rem; color: #aaa; border-top: 1px solid #eee; }
@@ -2095,12 +1932,8 @@ async function printMasterPDF() {
     </div>
     ${studentBlocks}
     <div class="key-box">
-        <strong>Nigerian NUC / NCCE Approved 5-Point Grading Scale:</strong>
-        A — 70+ (Excellent, GP=5) &nbsp;|&nbsp; B — 60–69 (Very Good, GP=4) &nbsp;|&nbsp; C — 50–59 (Good, GP=3) &nbsp;|&nbsp; D — 40–49 (Pass, GP=2) &nbsp;|&nbsp; F — Below 40 (Fail, GP=0)
-        <br><strong style="margin-top:5px;">Quality Point (QP) Explained:</strong>
-        QP = Grade Point (GP) × Course Credit Unit. It reflects the weighted academic value earned per course.
-        GPA = Total QP ÷ Total Credit Units for a semester. CGPA = Total QP (all semesters) ÷ Total Credit Units (all semesters).
-        <br>Distinction ≥ 3.50 &nbsp;|&nbsp; Upper Credit ≥ 3.00 &nbsp;|&nbsp; Lower Credit ≥ 2.00 &nbsp;|&nbsp; Pass ≥ 1.00 &nbsp;|&nbsp; Fail &lt; 1.00
+        <strong>Grading Key:</strong>
+        Score ≥ 50/100 = Pass &nbsp;|&nbsp; Score below 50/100 = Fail
     </div>
     <div class="page-footer">
         BRAINS AI CBT SYSTEM © ${new Date().getFullYear()} – QR codes are verifiable through the official portal.
@@ -2138,8 +1971,12 @@ function exportMasterCSV() {
 }
 
 function triggerCSV(data, filename) {
-    let csv = "NAME,ID,COURSE,SEM,SCORE\n";
-    data.forEach(r => csv += `"${r.name}","${r.matrix_no}","${r.subject}","${r.semester}","${r.score}%"\n`);
+    let csv = "NAME,ID,COURSE,SEM,SCORE,REMARK\n";
+    data.forEach(r => {
+        const score = Math.min(100, Math.round(parseFloat(r.score) || 0));
+        const remark = score >= 50 ? 'Pass' : 'Fail';
+        csv += `"${r.name}","${r.matrix_no}","${r.subject}","${r.semester}","${score}","${remark}"\n`;
+    });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2303,15 +2140,12 @@ async function applyMarkAdjustment() {
     const level     = document.getElementById('ma-level').value;
     const semester  = document.getElementById('ma-semester').value;
     const courseCode = document.getElementById('ma-course').value.trim().toUpperCase(); // optional
-    const resultType = document.getElementById('ma-type')?.value || 'both'; // 'ca' | 'exam' | 'both'
     const threshold = parseFloat(document.getElementById('ma-threshold').value);
     const increment = parseFloat(document.getElementById('ma-increment').value);
     const msg       = document.getElementById('ma-msg');
     const btn       = document.getElementById('ma-applyBtn');
-    // Adjustment caps are intentionally stricter than the normal entry maxes
-    // (CA 30 / Exam 70) so a boosted score can never exceed 80/100 total.
-    const CA_CAP    = 25;   // CA rows will never exceed 25 after adjustment
-    const EXAM_CAP  = 55;   // Exam rows will never exceed 55 after adjustment
+    // Adjusted scores are capped at 100 (full exam scale)
+    const SCORE_CAP = 100;
 
     if (!faculty || !dept || !level || !semester || isNaN(threshold) || isNaN(increment) || increment <= 0) {
         msg.style.color = '#ff4444';
@@ -2319,13 +2153,7 @@ async function applyMarkAdjustment() {
         return;
     }
 
-    const typeLabel = resultType === 'ca' ? 'CA' : resultType === 'exam' ? 'Exam' : 'CA & Exam';
-    const capLabel = resultType === 'ca'
-        ? `CA scores will be capped at ${CA_CAP}/30 after adjustment.`
-        : resultType === 'exam'
-        ? `Exam scores will be capped at ${EXAM_CAP}/70 after adjustment.`
-        : `CA scores will be capped at ${CA_CAP}/30 and Exam scores capped at ${EXAM_CAP}/70 after adjustment (max combined total: 80/100).`;
-    const confirmMsg = `Add ${increment} marks to ALL ${dept} ${level}L (${semester} Sem) ${typeLabel} scores BELOW ${threshold}?\n\n${capLabel}`;
+    const confirmMsg = `Add ${increment} marks to ALL ${dept} ${level}L (${semester} Sem) scores BELOW ${threshold}?\n\nScores will be capped at ${SCORE_CAP}/100 after adjustment.`;
     if (!confirm(confirmMsg)) return;
 
     btn.disabled = true;
@@ -2336,26 +2164,19 @@ async function applyMarkAdjustment() {
     try {
         // 1. Fetch all results matching the group (faculty can be NULL or match)
         let query = sb
-    .from('results')
-    .select('id, score, is_ca')
-    .or(`faculty.is.null,faculty.eq.${faculty}`)
-    .eq('department', dept)
-    .eq('level', level)
-    .eq('semester', semester);
+            .from('results')
+            .select('id, score')
+            .or(`faculty.is.null,faculty.eq.${faculty}`)
+            .eq('department', dept)
+            .eq('level', level)
+            .eq('semester', semester);
 
-// Only filter by course if the admin typed a course code
-if (courseCode) {
-    query = query.or(`subject.eq.${courseCode},course.eq.${courseCode}`);
-}
+        // Only filter by course if the admin typed a course code
+        if (courseCode) {
+            query = query.or(`subject.eq.${courseCode},course.eq.${courseCode}`);
+        }
 
-// Restrict to CA-only or Exam-only rows if the admin chose a specific type
-if (resultType === 'ca') {
-    query = query.eq('is_ca', true);
-} else if (resultType === 'exam') {
-    query = query.eq('is_ca', false);
-}
-
-const { data: results, error } = await query;
+        const { data: results, error } = await query;
         if (error) throw error;
         if (!results || results.length === 0) {
             msg.style.color = '#ffc107';
@@ -2365,12 +2186,10 @@ const { data: results, error } = await query;
             return;
         }
 
-        // 2. Filter: only those below threshold AND below their type-specific cap
-        //    (CA rows are capped at CA_CAP/30, Exam rows at EXAM_CAP/70 — never mixed)
+        // 2. Filter: only those below threshold AND below the cap
         const toUpdate = results.filter(r => {
-            const cap = r.is_ca ? CA_CAP : EXAM_CAP;
             const s = parseFloat(r.score);
-            return s < threshold && s < cap;
+            return s < threshold && s < SCORE_CAP;
         });
 
         if (toUpdate.length === 0) {
@@ -2381,12 +2200,11 @@ const { data: results, error } = await query;
             return;
         }
 
-        // 3. Update each row, capping at the type-specific cap (CA vs Exam)
+        // 3. Update each row, capping at SCORE_CAP
         let updatedCount = 0;
         for (const row of toUpdate) {
-            const cap = row.is_ca ? CA_CAP : EXAM_CAP;
             const current = parseFloat(row.score);
-            const newScore = Math.min(cap, current + increment);
+            const newScore = Math.min(SCORE_CAP, current + increment);
             const { error: updateErr } = await sb
                 .from('results')
                 .update({ score: newScore.toString() })
@@ -2395,12 +2213,7 @@ const { data: results, error } = await query;
         }
 
         msg.style.color = '#00ff88';
-        const successCapLabel = resultType === 'ca'
-            ? `CA capped at ${CA_CAP}/30.`
-            : resultType === 'exam'
-            ? `Exam capped at ${EXAM_CAP}/70.`
-            : `CA capped at ${CA_CAP}/30, Exam capped at ${EXAM_CAP}/70.`;
-        msg.innerText = `✅ Successfully updated ${updatedCount} of ${toUpdate.length} ${typeLabel} result(s). ${successCapLabel}`;
+        msg.innerText = `✅ Successfully updated ${updatedCount} of ${toUpdate.length} result(s). Capped at ${SCORE_CAP}/100.`;
 
         // Refresh results if the results section is open
         if (typeof fetchFreshData === 'function') fetchFreshData();
@@ -2641,14 +2454,12 @@ async function forceLogoutCarryover() {
 }
 
 let dashboardChartInstance = null;
-let caChartInstance = null;
-let examChartInstance = null;
 
 async function renderDashboardChart() {
     const canvas = document.getElementById('dashboardChart');
     if (!canvas) return;
 
-    // Read filter values (shared across all three panels)
+    // Read filter values
     const selFaculty  = document.getElementById('chartFilterFaculty')?.value;
     const selDept     = document.getElementById('chartFilterDept')?.value;
     const selLevel    = document.getElementById('chartFilterLevel')?.value;
@@ -2668,141 +2479,17 @@ async function renderDashboardChart() {
     if (selSemester) filtered = filtered.filter(r => (r.semester || '').trim() === selSemester);
     if (selCourse)   filtered = filtered.filter(r => (r.subject || r.course || '').toUpperCase() === selCourse);
 
-    renderCaPanel(filtered);
-    renderExamPanel(filtered);
     renderTotalPanel(filtered);
 }
 
-// ── CA SUMMARY PANEL (score distribution, /30, no pass/fail) ─────────
-function renderCaPanel(filtered) {
-    const canvas = document.getElementById('caChart');
-    if (!canvas) return;
-    const caRows = filtered.filter(r => r.is_ca).map(r => parseFloat(r.score)).filter(s => !isNaN(s));
-
-    const statsDiv = document.getElementById('caStats');
-    const noData   = document.getElementById('caChartNoData');
-
-    if (caChartInstance) caChartInstance.destroy();
-
-    if (caRows.length === 0) {
-        canvas.parentElement.style.display = 'none';
-        if (statsDiv) statsDiv.style.display = 'none';
-        if (noData) noData.style.display = 'block';
-        return;
-    }
-    canvas.parentElement.style.display = 'flex';
-    if (noData) noData.style.display = 'none';
-
-    const low  = caRows.filter(s => s <= 14).length;   // 0–14
-    const mid  = caRows.filter(s => s >= 15 && s <= 22).length; // 15–22
-    const high = caRows.filter(s => s >= 23).length;   // 23–30
-
-    const avg = (caRows.reduce((a, b) => a + b, 0) / caRows.length).toFixed(1);
-    const min = Math.min(...caRows);
-    const max = Math.max(...caRows);
-
-    document.getElementById('caStatTotal').textContent = caRows.length;
-    document.getElementById('caStatAvg').textContent   = avg;
-    document.getElementById('caStatMin').textContent   = min;
-    document.getElementById('caStatMax').textContent   = max;
-    if (statsDiv) statsDiv.style.display = 'block';
-
-    const ctx = canvas.getContext('2d');
-    caChartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['0–14', '15–22', '23–30'],
-            datasets: [{
-                data: [low, mid, high],
-                backgroundColor: ['#ff4444', '#facc15', '#4ade80'],
-                borderColor: ['#ff4444', '#facc15', '#4ade80'],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
-        }
-    });
-}
-
-// ── EXAM SUMMARY PANEL (score distribution, /70, no pass/fail) ───────
-function renderExamPanel(filtered) {
-    const canvas = document.getElementById('examChart');
-    if (!canvas) return;
-    const examRows = filtered.filter(r => !r.is_ca).map(r => parseFloat(r.score)).filter(s => !isNaN(s));
-
-    const statsDiv = document.getElementById('examStats');
-    const noData   = document.getElementById('examChartNoData');
-
-    if (examChartInstance) examChartInstance.destroy();
-
-    if (examRows.length === 0) {
-        canvas.parentElement.style.display = 'none';
-        if (statsDiv) statsDiv.style.display = 'none';
-        if (noData) noData.style.display = 'block';
-        return;
-    }
-    canvas.parentElement.style.display = 'flex';
-    if (noData) noData.style.display = 'none';
-
-    const low  = examRows.filter(s => s <= 34).length;  // 0–34
-    const mid  = examRows.filter(s => s >= 35 && s <= 52).length; // 35–52
-    const high = examRows.filter(s => s >= 53).length;  // 53–70
-
-    const avg = (examRows.reduce((a, b) => a + b, 0) / examRows.length).toFixed(1);
-    const min = Math.min(...examRows);
-    const max = Math.max(...examRows);
-
-    document.getElementById('examStatTotal').textContent = examRows.length;
-    document.getElementById('examStatAvg').textContent   = avg;
-    document.getElementById('examStatMin').textContent   = min;
-    document.getElementById('examStatMax').textContent   = max;
-    if (statsDiv) statsDiv.style.display = 'block';
-
-    const ctx = canvas.getContext('2d');
-    examChartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['0–34', '35–52', '53–70'],
-            datasets: [{
-                data: [low, mid, high],
-                backgroundColor: ['#ff4444', '#facc15', '#4ade80'],
-                borderColor: ['#ff4444', '#facc15', '#4ade80'],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
-        }
-    });
-}
-
-// ── TOTAL SUMMARY PANEL (CA+Exam paired per student/course, /100, Pass/Fail @ 50) ──
+// ── SCORE SUMMARY PANEL (/100, Pass/Fail @ 50) ────────────────────────
 function renderTotalPanel(filtered) {
     const canvas = document.getElementById('dashboardChart');
     if (!canvas) return;
 
-    // Pair CA + Exam rows by matrix_no + course so the "total" is a real combined score,
-    // not a raw CA or Exam row compared against a 100-point scale.
-    const pairs = {};
-    filtered.forEach(r => {
-        const course = r.subject || r.course || 'N/A';
-        const key = `${r.matrix_no}__${course}`;
-        if (!pairs[key]) pairs[key] = { ca: null, exam: null };
-        if (r.is_ca) pairs[key].ca = r; else pairs[key].exam = r;
-    });
-
-    const totals = Object.values(pairs)
-        .filter(p => p.ca || p.exam) // at least one component present
-        .map(p => {
-            const caScore   = p.ca   ? Math.min(30, Math.round(parseFloat(p.ca.score)))   : 0;
-            const examScore = p.exam ? Math.min(70, Math.round(parseFloat(p.exam.score))) : 0;
-            return Math.min(100, caScore + examScore);
-        });
+    const totals = filtered
+        .map(r => Math.min(100, Math.round(parseFloat(r.score))))
+        .filter(s => !isNaN(s));
 
     const total   = totals.length;
     const passed  = totals.filter(s => s >= 50);
@@ -2995,154 +2682,6 @@ async function wipeAllBin() {
     } catch (err) {
         alert("❌ " + err.message);
     }
-}
-
-// ── COURSE CATALOG ────────────────────────────────────────────────────
-
-function updateCatalogDepartments() {
-    const facName = document.getElementById('catFaculty')?.value;
-    const deptSel = document.getElementById('catDept');
-    if (!deptSel) return;
-    if (!facName) { deptSel.innerHTML = '<option value="">-- Select Faculty First --</option>'; return; }
-    const facObj = window.allFaculties.find(f => f.name === facName);
-    if (!facObj) return;
-    const filtered = window.allDepartments.filter(d => d.faculty_id === facObj.id);
-    deptSel.innerHTML = '<option value="">-- Select Department --</option>' +
-        filtered.map(d => `<option value="${escapeAttr(d.name)}">${sanitise(d.name)}</option>`).join('');
-}
-
-function updateCatalogFilterDepts() {
-    const facName = document.getElementById('catFilterFaculty')?.value;
-    const deptSel = document.getElementById('catFilterDept');
-    if (!deptSel) return;
-    if (!facName) { deptSel.innerHTML = '<option value="">-- All Departments --</option>'; return; }
-    const facObj = window.allFaculties.find(f => f.name === facName);
-    if (!facObj) return;
-    const filtered = window.allDepartments.filter(d => d.faculty_id === facObj.id);
-    deptSel.innerHTML = '<option value="">-- All Departments --</option>' +
-        filtered.map(d => `<option value="${escapeAttr(d.name)}">${sanitise(d.name)}</option>`).join('');
-    loadCourseCatalog();
-}
-
-async function addCatalogEntry() {
-    const faculty     = document.getElementById('catFaculty')?.value.trim();
-    const dept        = document.getElementById('catDept')?.value.trim();
-    const level       = document.getElementById('catLevel')?.value.trim();
-    const semester    = document.getElementById('catSemester')?.value.trim();
-    const code        = document.getElementById('catCode')?.value.trim().toUpperCase();
-    const title       = document.getElementById('catTitle')?.value.trim();
-    const units       = parseInt(document.getElementById('catUnits')?.value);
-    const msgEl       = document.getElementById('catMsg');
-
-    if (!dept || !level || !semester || !code) {
-        msgEl.style.color = '#ff4444';
-        msgEl.textContent = '⚠️ Department, Level, Semester and Course Code are required.';
-        return;
-    }
-    if (isNaN(units) || units < 1 || units > 6) {
-        msgEl.style.color = '#ff4444';
-        msgEl.textContent = '⚠️ Credit units must be between 1 and 6.';
-        return;
-    }
-
-    const btn = document.getElementById('catAddBtn');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
-
-    try {
-        const { error } = await sb.from('course_catalog').upsert({
-            course_code: code,
-            course_title: title || null,
-            credit_units: units,
-            department: dept,
-            faculty: faculty || null,
-            level,
-            semester
-        }, { onConflict: 'course_code,department,level,semester' });
-
-        if (error) throw error;
-
-        msgEl.style.color = '#00ff88';
-        msgEl.textContent = `✅ ${code} saved (${units} unit${units > 1 ? 's' : ''}).`;
-        document.getElementById('catCode').value  = '';
-        document.getElementById('catTitle').value = '';
-        document.getElementById('catUnits').value = '3';
-        loadCourseCatalog();
-    } catch (err) {
-        msgEl.style.color = '#ff4444';
-        msgEl.textContent = '❌ ' + err.message;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '➕ Add / Update';
-    }
-}
-
-async function loadCourseCatalog() {
-    const container = document.getElementById('catList');
-    if (!container) return;
-    container.innerHTML = '<p style="color:gray;">Loading...</p>';
-
-    const faculty  = document.getElementById('catFilterFaculty')?.value || '';
-    const dept     = document.getElementById('catFilterDept')?.value    || '';
-    const level    = document.getElementById('catFilterLevel')?.value   || '';
-    const semester = document.getElementById('catFilterSemester')?.value|| '';
-
-    try {
-        let query = sb.from('course_catalog').select('*').order('course_code');
-        if (dept)     query = query.eq('department', dept);
-        if (level)    query = query.eq('level', level);
-        if (semester) query = query.eq('semester', semester);
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-            container.innerHTML = '<p style="color:gray; padding:16px;">No courses in catalog yet. Add one above.</p>';
-            return;
-        }
-
-        container.innerHTML = `
-            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                <thead>
-                    <tr style="background:#0f5132; color:white; text-align:left;">
-                        <th style="padding:10px;">Code</th>
-                        <th style="padding:10px;">Title</th>
-                        <th style="padding:10px; text-align:center;">Units</th>
-                        <th style="padding:10px;">Department</th>
-                        <th style="padding:10px; text-align:center;">Level</th>
-                        <th style="padding:10px; text-align:center;">Semester</th>
-                        <th style="padding:10px; text-align:center;">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${data.map((c, i) => `
-                    <tr style="background:${i % 2 === 0 ? '#111' : '#0a0a0a'}; border-bottom:1px solid #222;">
-                        <td style="padding:9px; font-weight:bold; color:#00ff88;">${sanitise(c.course_code)}</td>
-                        <td style="padding:9px; color:#ccc;">${sanitise(c.course_title || '—')}</td>
-                        <td style="padding:9px; text-align:center; color:#facc15; font-weight:bold;">${sanitise(String(c.credit_units))}</td>
-                        <td style="padding:9px; color:#aaa;">${sanitise(c.department)}</td>
-                        <td style="padding:9px; text-align:center; color:#aaa;">${sanitise(c.level)}L</td>
-                        <td style="padding:9px; text-align:center; color:#aaa;">${sanitise(c.semester)}</td>
-                        <td style="padding:9px; text-align:center;">
-                            <button class="delete-cat-btn" data-cat-id="${c.id}"
-                                style="background:#ff4444; color:white; border:none; padding:5px 11px; border-radius:4px; cursor:pointer; font-size:0.8rem;">
-                                🗑️ Delete
-                            </button>
-                        </td>
-                    </tr>`).join('')}
-                </tbody>
-            </table>
-            <p style="color:#666; font-size:0.75rem; margin-top:8px;">${data.length} course(s) shown.</p>`;
-    } catch (err) {
-        container.innerHTML = `<p style="color:red;">Error: ${sanitise(err.message)}</p>`;
-    }
-}
-
-async function deleteCatalogEntry(id) {
-    if (!confirm('Delete this course from the catalog? GPA calculations will fall back to 3 credit units until it is re-added.')) return;
-    const { error } = await sb.from('course_catalog').delete().eq('id', id);
-    if (error) { alert('❌ ' + error.message); return; }
-    loadCourseCatalog();
 }
 
 // ── COURSE REGISTRATION CONTROL ──────────────────────────────────────────────
