@@ -154,10 +154,18 @@ document.getElementById('resultFilterLevel')?.addEventListener('change', () => {
 document.getElementById('resultFilterSemester')?.addEventListener('change', () => { fetchFreshData(); });
 document.getElementById('fullProctorGrid')?.addEventListener('click', (e) => {
     const btn = e.target.closest('.kick-btn');
-    if (!btn) return;
-    const matrix = btn.getAttribute('data-matrix');
-    const name   = btn.getAttribute('data-name');
-    if (matrix) kickStudent(matrix, name);   // calls the existing function
+    if (btn) {
+        const matrix = btn.getAttribute('data-matrix');
+        const name   = btn.getAttribute('data-name');
+        if (matrix) kickStudent(matrix, name);   // calls the existing function
+        return;
+    }
+    const thumb = e.target.closest('.photo-thumb');
+    if (thumb) {
+        const matrix = thumb.getAttribute('data-matrix');
+        const name   = thumb.getAttribute('data-name');
+        if (matrix) openStudentPhoto(matrix, name);
+    }
 });
 
     document.getElementById('liveMonitorLink')?.addEventListener('click', (e) => { e.preventDefault(); openProctorPanel(); });
@@ -1483,6 +1491,9 @@ function renderMasterUI() {
 const gunSound = new Audio('machine-gun-01.mp3');
 let proctorAdminTimer = null;
 let announcedCheats = new Set();
+let currentPhotoMatrix = null;   // matrix_no of the student whose photo is currently open, or null
+let photoPollTimer = null;       // poll for that ONE student's photo; grid itself no longer carries images
+
 function openProctorPanel() {
     const panel = document.getElementById("proctorOverlay");
     if (!panel) return;
@@ -1495,12 +1506,21 @@ function closeProctorPanel() {
     const panel = document.getElementById("proctorOverlay");
     if (panel) panel.style.top = "-110%";
     if (proctorAdminTimer) { clearInterval(proctorAdminTimer); proctorAdminTimer = null; }
+    closeStudentPhoto(); // stop any single-student photo poll too, so nothing keeps running in the background
 }
 async function refreshProctorGrid() {
     const grid = document.getElementById("fullProctorGrid");
     const counterDisplay = document.getElementById("totalStudentCount");
     try {
-        const { data, error } = await sb.from('live_monitoring').select('*').order('last_seen', { ascending: false });
+        // NOTE: last_snapshot (the base64 image) is deliberately excluded here.
+        // This query runs every 5s for the whole grid, so pulling all 150 images on
+        // every poll was the single biggest bandwidth cost in the app. Photos are now
+        // fetched one row at a time, only when a specific student's tile is tapped —
+        // see openStudentPhoto() below.
+        const { data, error } = await sb
+            .from('live_monitoring')
+            .select('matrix_no, name, current_subject, status, last_seen')
+            .order('last_seen', { ascending: false });
         if (error) throw error;
         if (counterDisplay) counterDisplay.textContent = `Active Students: ${data ? data.length : 0}`;
         if (!data || data.length === 0) { grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px;">Awaiting connections...</div>`; return; }
@@ -1521,7 +1541,6 @@ async function refreshProctorGrid() {
             if (shouldShowRed) indicatorColor = 'red';
             const safeMatrix = sanitise(std.matrix_no);
             const safeName = sanitise(std.name);
-            const safeSnapshot = escapeAttr(std.last_snapshot);
             return `
             <div style="background: #111; border: 3px solid ${borderColor}; border-radius: 10px; overflow: hidden; position: relative;">
 <button class="kick-btn"
@@ -1530,7 +1549,10 @@ async function refreshProctorGrid() {
         style="position: absolute; top: 5px; left: 5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 4px; font-size: 0.6em; padding: 4px 8px; cursor: pointer; z-index: 10;">
     EXIT
 </button>
-                <div style="width: 100%; aspect-ratio: 4/3; background: #000;"><img src="${safeSnapshot}" style="width: 100%; height: 100%; object-fit: cover;"></div>
+                <div class="photo-thumb" data-matrix="${safeMatrix}" data-name="${safeName}"
+                     style="width: 100%; aspect-ratio: 4/3; background: #000; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                    <span style="color:#555; font-size:0.7em; text-align:center;">📷 Tap to view</span>
+                </div>
                 <div style="padding: 8px;">
                     <div style="color: white; font-weight: bold; font-size: 0.75em;">${safeName}</div>
                     <div style="color: ${borderColor}; font-size: 0.65em; margin-top: 2px;">${statusText}</div>
@@ -1541,6 +1563,64 @@ async function refreshProctorGrid() {
         }).join('');
     } catch (err) { console.error(err); }
 }
+
+// ── ON-DEMAND SINGLE-STUDENT PHOTO ──────────────────────────────────
+// Only ONE student's photo is ever polled at a time ("swap", not "stack").
+// Tapping a new tile stops watching the previous student before starting the new one.
+async function openStudentPhoto(matrix, name) {
+    if (photoPollTimer) { clearInterval(photoPollTimer); photoPollTimer = null; }
+    currentPhotoMatrix = matrix;
+
+    let modal = document.getElementById("studentPhotoModal");
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = "studentPhotoModal";
+        modal.style.cssText = "position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:100000; display:flex; align-items:center; justify-content:center;";
+        modal.innerHTML = `
+            <div style="background:#111; border-radius:12px; padding:16px; max-width:90vw; width:360px; position:relative;">
+                <button id="closeStudentPhotoBtn" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:6px; padding:6px 10px; cursor:pointer;">✕</button>
+                <div id="studentPhotoName" style="color:white; font-weight:bold; margin-bottom:10px; padding-right:30px;"></div>
+                <div style="width:100%; aspect-ratio:4/3; background:#000; border-radius:8px; overflow:hidden;">
+                    <img id="studentPhotoImg" style="width:100%; height:100%; object-fit:cover;">
+                </div>
+                <div id="studentPhotoMeta" style="color:#888; font-size:0.75em; margin-top:8px;"></div>
+            </div>`;
+        document.body.appendChild(modal);
+        document.getElementById("closeStudentPhotoBtn").addEventListener('click', closeStudentPhoto);
+    }
+    modal.style.display = 'flex';
+    document.getElementById("studentPhotoName").textContent = name;
+    document.getElementById("studentPhotoMeta").textContent = "Loading…";
+
+    await fetchOneStudentPhoto(matrix); // fetch right away on tap — don't wait for the next poll tick
+    photoPollTimer = setInterval(() => fetchOneStudentPhoto(matrix), 7000);
+}
+
+async function fetchOneStudentPhoto(matrix) {
+    // Guards against a stale response landing after the admin has already switched
+    // to a different student or closed the panel.
+    if (currentPhotoMatrix !== matrix) return;
+    try {
+        const { data, error } = await sb
+            .from('live_monitoring')
+            .select('last_snapshot, last_seen')
+            .eq('matrix_no', matrix)
+            .maybeSingle();
+        if (error || !data || currentPhotoMatrix !== matrix) return;
+        const img = document.getElementById("studentPhotoImg");
+        const meta = document.getElementById("studentPhotoMeta");
+        if (img) img.src = escapeAttr(data.last_snapshot) || '';
+        if (meta) meta.textContent = "Last updated: " + new Date(data.last_seen).toLocaleTimeString();
+    } catch (err) { console.error(err); }
+}
+
+function closeStudentPhoto() {
+    if (photoPollTimer) { clearInterval(photoPollTimer); photoPollTimer = null; }
+    currentPhotoMatrix = null;
+    const modal = document.getElementById("studentPhotoModal");
+    if (modal) modal.style.display = 'none';
+}
+
 async function clearMonitoringTable() {
     const confirmFirst = confirm("⚠️ Are you sure you want to clear the monitoring feed?");
     if (!confirmFirst) return;
