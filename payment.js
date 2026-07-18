@@ -152,9 +152,11 @@ document.addEventListener('DOMContentLoaded', () => {
         })();
     }
 
-    // Intent expiry window on the server is 20 minutes (see indext.ts).
-    // Refresh a bit before that so we never open the popup with a
-    // near-expired intent (checkout + OTP can easily take a few minutes).
+    // Intent expiry window on the server is 20 minutes (see indext.ts —
+    // this was previously mismatched at 5 minutes and has been fixed to
+    // match this comment). Refresh a bit before expiry so we never open
+    // the popup with a near-expired intent (checkout + OTP can easily
+    // take a few minutes).
     const INTENT_STALE_MS = 15 * 60 * 1000; // refresh if older than 15 minutes
 
     // Pay Now button: use the payment intent data
