@@ -236,6 +236,26 @@ async function fetchExams() {
     if (!localData) return;
 
     try {
+        // ── 1. Get student's registered courses for this semester ──────────
+        const { data: regData } = await sb
+            .from('course_registrations')
+            .select('course_code')
+            .eq('matrix_no', localData.matrix)
+            .eq('department', localData.dept.toUpperCase().trim())
+            .eq('level', localData.level)
+            .eq('semester', localData.semester);
+
+        const registeredCourses = (regData || []).map(r => r.course_code.toUpperCase().trim());
+
+        if (registeredCourses.length === 0) {
+            listDiv.innerHTML = `<div style="background:#fff3cd; border-left:5px solid #ffc107;
+                padding:18px; border-radius:10px; color:#856404;">
+                ⚠️ <strong>You have not registered any courses yet.</strong><br>
+                Go to <em>Course Registration</em> in the sidebar to select your courses for this semester.
+            </div>`;
+            return;
+        }
+
         const { data: onlineResults } = await sb.from('results')
             .select('subject, course')
             .eq('matrix_no', localData.matrix);
@@ -254,11 +274,12 @@ async function fetchExams() {
 
         if (error) throw error;
 
-        // Show all available exam questions for this dept/level/semester (registration status not checked)
-        const uniqueCourses = exams ? [...new Set(exams.map(e => e.course.toUpperCase().trim()))] : [];
+        // Only show questions for registered courses
+        const allCourses = exams ? [...new Set(exams.map(e => e.course.toUpperCase().trim()))] : [];
+        const uniqueCourses = allCourses.filter(c => registeredCourses.includes(c));
 
         if (uniqueCourses.length === 0) {
-            listDiv.innerHTML = "<p style='color:gray;'>No exam questions available yet.</p>";
+            listDiv.innerHTML = "<p style='color:gray;'>No exam questions available yet for your registered courses.</p>";
             return;
         }
 

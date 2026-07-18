@@ -79,6 +79,7 @@
 
 <a class="nav-link" data-section="markadjust" href="#"><i class="fas fa-pen-fancy"></i><span>Mark Adjust</span></a>
 <a class="nav-link" data-section="recyclebin"><i class="fas fa-recycle"></i><span>Recycle Bin</span></a>
+<a class="nav-link" data-section="catalog"><i class="fas fa-book"></i><span>Course Catalog</span></a>
 <a class="nav-link" data-section="registration"><i class="fas fa-clipboard-check"></i><span>Course Registration</span></a>
         <div class="nav-label">ACCOUNT</div>
         <a class="nav-link nav-logout" id="logoutLink"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
@@ -155,10 +156,44 @@
                 </div>
             </div>
 
-            <!-- SCORE SUMMARY (Exam only, /100, Pass/Fail) -->
-            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; max-width:420px;">
+            <!-- Three summary panels: CA / Exam / Total -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px;">
+
+                <!-- CA SUMMARY -->
                 <div style="background:#0a1f0f; border:1px solid #1a3a1f; border-radius:10px; padding:16px;">
-                    <h3 style="margin:0 0 12px 0; color:#facc15; font-size:0.95rem;">📊 Score Summary <span style="color:#666; font-weight:normal; font-size:0.75rem;">(/100, Pass ≥ 50)</span></h3>
+                    <h3 style="margin:0 0 12px 0; color:#4ade80; font-size:0.95rem;">📝 CA Summary <span style="color:#666; font-weight:normal; font-size:0.75rem;">(/30)</span></h3>
+                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px;">
+                        <div style="flex:0 0 140px; max-height:160px;">
+                            <canvas id="caChart"></canvas>
+                        </div>
+                        <div id="caStats" style="flex:1; min-width:140px; display:none; color:white; font-size:0.85rem; line-height:1.9;">
+                            <p><strong>Total CA Records:</strong> <span id="caStatTotal">—</span></p>
+                            <p>Average: <span id="caStatAvg">—</span>/30</p>
+                            <p>Lowest: <span id="caStatMin">—</span> &nbsp;|&nbsp; Highest: <span id="caStatMax">—</span></p>
+                        </div>
+                    </div>
+                    <p id="caChartNoData" style="color:#555; display:none; text-align:center; padding:14px 0; margin:0;">No CA results found.</p>
+                </div>
+
+                <!-- EXAM SUMMARY -->
+                <div style="background:#0a1f0f; border:1px solid #1a3a1f; border-radius:10px; padding:16px;">
+                    <h3 style="margin:0 0 12px 0; color:#00ff88; font-size:0.95rem;">📄 Exam Summary <span style="color:#666; font-weight:normal; font-size:0.75rem;">(/70)</span></h3>
+                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px;">
+                        <div style="flex:0 0 140px; max-height:160px;">
+                            <canvas id="examChart"></canvas>
+                        </div>
+                        <div id="examStats" style="flex:1; min-width:140px; display:none; color:white; font-size:0.85rem; line-height:1.9;">
+                            <p><strong>Total Exam Records:</strong> <span id="examStatTotal">—</span></p>
+                            <p>Average: <span id="examStatAvg">—</span>/70</p>
+                            <p>Lowest: <span id="examStatMin">—</span> &nbsp;|&nbsp; Highest: <span id="examStatMax">—</span></p>
+                        </div>
+                    </div>
+                    <p id="examChartNoData" style="color:#555; display:none; text-align:center; padding:14px 0; margin:0;">No Exam results found.</p>
+                </div>
+
+                <!-- TOTAL SUMMARY (CA + Exam combined, Pass/Fail) -->
+                <div style="background:#0a1f0f; border:1px solid #1a3a1f; border-radius:10px; padding:16px;">
+                    <h3 style="margin:0 0 12px 0; color:#facc15; font-size:0.95rem;">📊 Total Summary <span style="color:#666; font-weight:normal; font-size:0.75rem;">(/100, CA+Exam)</span></h3>
                     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px;">
                         <div style="flex:0 0 140px; max-height:160px;">
                             <canvas id="dashboardChart"></canvas>
@@ -172,6 +207,7 @@
                     </div>
                     <p id="chartNoData" style="color:#555; display:none; text-align:center; padding:14px 0; margin:0;">No results found for the selected filters.</p>
                 </div>
+
             </div>
         </div>
     </div>
@@ -447,7 +483,7 @@
             <div class="card" style="border-top:4px solid #ffc107;">
                 <h2 style="color:#ffc107;">🎓 Full Transcript</h2>
                 <p style="opacity:0.8;font-size:0.85em;margin-bottom:14px;">
-                    All semesters combined with Pass/Fail remarks per course. Released after full academic session is complete and records are confirmed.
+                    All semesters combined with CGPA. Released after full academic session is complete and records are confirmed.
                 </p>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button id="releaseResultsBtn" style="flex:1;background:#ffc107;color:#0a0a0a;border:none;padding:11px;border-radius:8px;font-weight:bold;cursor:pointer;">✅ RELEASE TRANSCRIPT</button>
@@ -518,7 +554,7 @@
         <div class="section-header"><h1>Mark Adjustment</h1><p>Boost scores by faculty, department, level and semester</p></div>
         <div class="card" style="max-width:600px;">
             <h2>🎯 Bulk Mark Adjustment</h2>
-            <p style="opacity:0.8;margin-bottom:15px;">All matching results will be increased by the increment you specify. <strong>Scores never exceed 100.</strong></p>
+            <p style="opacity:0.8;margin-bottom:15px;">All matching results will be increased by the increment you specify. <strong>CA scores never exceed 25/30, Exam scores never exceed 55/70</strong> (max combined total: 80/100).</p>
 
             <label>Faculty</label>
             <select id="ma-faculty"><option value="">-- Loading Faculties... --</option></select>
@@ -529,12 +565,18 @@
             <label>Semester</label>
             <select id="ma-semester"><option value=""></option>
 </select>
+<label>Result Type</label>
+<select id="ma-type">
+    <option value="both">Both CA &amp; Exam</option>
+    <option value="ca">CA Only</option>
+    <option value="exam">Exam Only</option>
+</select>
 <label>Course Code (Optional – leave blank to adjust all courses in this group)</label>
 <input type="text" id="ma-course" placeholder="e.g. MLT200" style="text-transform:uppercase;">
-            <label>Score Threshold (students with score below this value, on the /100 scale)</label>
-            <input type="number" id="ma-threshold" placeholder="e.g. 45" min="0" max="100">
+            <label>Score Threshold (students with score below this value, on the CA/30 or Exam/70 scale)</label>
+            <input type="number" id="ma-threshold" placeholder="e.g. 15" min="0" max="70">
             <label>Score Increment (How many marks to add)</label>
-            <input type="number" id="ma-increment" placeholder="e.g. 5" min="1" max="100">
+            <input type="number" id="ma-increment" placeholder="e.g. 5" min="1" max="55">
 
             <button id="ma-applyBtn" style="width:100%; margin-top:15px; background:#6f42c1; color:white; font-weight:bold; padding:12px; border-radius:6px; border:none; cursor:pointer;">🚀 APPLY MARK ADJUSTMENT</button>
             <p id="ma-msg" style="text-align:center; margin-top:12px; font-weight:bold;"></p>
@@ -583,6 +625,139 @@
         <p style="color:gray; padding:20px;">Loading recycle bin...</p>
     </div>
 </div>
+    <!-- COURSE CATALOG -->
+    <div id="sec-catalog" class="admin-section">
+        <div class="section-header">
+            <h1>📚 Course Catalog</h1>
+            <p>Set credit units per course — used for GPA/CGPA calculation in student result slips</p>
+        </div>
+
+        <!-- Add / Update form -->
+        <div class="card" style="max-width:720px; margin-bottom:20px;">
+            <h2>➕ Add / Update Course</h2>
+            <p style="opacity:0.75; font-size:0.85rem; margin-bottom:14px;">
+                If the same course code already exists for a department+level+semester combination it will be updated (upserted). Credit units must be 1–6 (NUC/NCCE standard).
+            </p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div>
+                    <label>Faculty</label>
+                    <select id="catFaculty" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box;">
+                        <option value="">-- Select Faculty --</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Department <span style="color:#ff4444;">*</span></label>
+                    <select id="catDept" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box;">
+                        <option value="">-- Select Faculty First --</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Level <span style="color:#ff4444;">*</span></label>
+                    <select id="catLevel" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box;">
+                        <option value="">-- Choose Level --</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                        <option value="300">300</option>
+                        <option value="400">400</option>
+                        <option value="500">500</option>
+                        <option value="600">600</option>
+                        <option value="700">700</option>
+                        <option value="800">800</option>
+                        <option value="900">900</option>
+                        <option value="1000">1000</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Semester <span style="color:#ff4444;">*</span></label>
+                    <select id="catSemester" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box;">
+                        <option value="">-- Choose Semester --</option>
+                        <option value="1st">1st Semester</option>
+                        <option value="2nd">2nd Semester</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Course Code <span style="color:#ff4444;">*</span></label>
+                    <input type="text" id="catCode" placeholder="e.g. MLT201, BIO101"
+                           style="width:100%; background:#111; color:white; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box; text-transform:uppercase;">
+                </div>
+                <div>
+                    <label>Course Title (optional)</label>
+                    <input type="text" id="catTitle" placeholder="e.g. Medical Microbiology"
+                           style="width:100%; background:#111; color:white; border:1px solid #444; padding:9px; border-radius:6px; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label>Credit Units <span style="color:#ff4444;">*</span></label>
+                    <input type="number" id="catUnits" value="3" min="1" max="6"
+                           style="width:100%; background:#111; color:#facc15; border:1px solid #00ff88; padding:9px; border-radius:6px; box-sizing:border-box; font-weight:bold; font-size:1.05rem;">
+                    <small style="color:#666;">Standard: 1–4 units. Practicals/projects: up to 6.</small>
+                </div>
+            </div>
+            <div style="margin-top:16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                <button id="catAddBtn"
+                        style="background:#00ff88; color:#022c16; border:none; padding:11px 28px; border-radius:7px; font-weight:bold; font-size:0.95rem; cursor:pointer;">
+                    ➕ Add / Update
+                </button>
+                <span id="catMsg" style="font-size:0.9rem;"></span>
+            </div>
+        </div>
+
+        <!-- Filter + List -->
+        <div class="card">
+            <h2>📋 Catalog Entries</h2>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:18px; background:#0a1f0f; padding:14px; border-radius:8px; border:1px solid #1a3a1f;">
+                <div>
+                    <label style="color:#aaa; font-size:0.8rem;">Faculty</label>
+                    <select id="catFilterFaculty" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:8px; border-radius:6px;">
+                        <option value="">-- All Faculties --</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:#aaa; font-size:0.8rem;">Department</label>
+                    <select id="catFilterDept" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:8px; border-radius:6px;">
+                        <option value="">-- All Departments --</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:#aaa; font-size:0.8rem;">Level</label>
+                    <select id="catFilterLevel" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:8px; border-radius:6px;">
+                        <option value="">-- All Levels --</option>
+                        <option value="100">100L</option>
+                        <option value="200">200L</option>
+                        <option value="300">300L</option>
+                        <option value="400">400L</option>
+                        <option value="500">500L</option>
+                        <option value="600">600L</option>
+                        <option value="700">700L</option>
+                        <option value="800">800L</option>
+                        <option value="900">900L</option>
+                        <option value="1000">1000L</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:#aaa; font-size:0.8rem;">Semester</label>
+                    <select id="catFilterSemester" style="width:100%; background:#0f5132; color:white; border:1px solid #00ff88; padding:8px; border-radius:6px;">
+                        <option value="">-- All Semesters --</option>
+                        <option value="1st">1st Semester</option>
+                        <option value="2nd">2nd Semester</option>
+                    </select>
+                </div>
+            </div>
+            <div id="catList">
+                <p style="color:gray; padding:20px;">Navigate to this section to load the catalog.</p>
+            </div>
+        </div>
+
+        <!-- Info box -->
+        <div style="margin-top:18px; padding:12px 16px; background:#1a1a1a; border-left:4px solid #facc15; border-radius:6px; font-size:0.82rem; color:#aaa;">
+            <strong style="color:#facc15;">How GPA is calculated:</strong>
+            Quality Points (QP) = Grade Point × Credit Units per course.
+            GPA = Total QP ÷ Total Credit Units for the semester.
+            Grade points: A=5, B=4, C=3, D=2, F=0.
+            If a course is not in the catalog, it defaults to <strong style="color:white;">3 credit units</strong> — students will see a warning on their result slip.
+        </div>
+    </div>
+
+
     <!-- ── COURSE REGISTRATION CONTROL SECTION ── -->
     <div id="sec-registration" class="admin-section">
     <div class="section-header">
