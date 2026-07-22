@@ -109,6 +109,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Maps raw server error messages to specific, actionable guidance for
+    // the student — instead of one generic "contact the bursary" catch-all.
+    // Keeps the underlying message too, so nothing is hidden if a case
+    // isn't explicitly matched below.
+    function getFriendlyErrorMessage(rawMessage) {
+        const msg = rawMessage || '';
+
+        if (/payment intent expired/i.test(msg)) {
+            return '⚠️ Your payment session expired before we could confirm it. Click "Look Up Fee" again to get a fresh session, then retry payment. Contact the bursary if money was deducted from your account.';
+        }
+        if (/payment intent already used/i.test(msg)) {
+            return '✅ It looks like this payment was already confirmed. Try logging in — if it still shows as unpaid, contact the bursary with your payment reference.';
+        }
+        if (/invalid intent signature|intent student mismatch|invalid payment intent/i.test(msg)) {
+            return '⚠️ We couldn\'t verify this payment session as belonging to you. Please click "Look Up Fee" again to start a fresh, correctly-linked session before retrying.';
+        }
+        if (/underpayment detected/i.test(msg)) {
+            return '⚠️ ' + msg + ' It looks like the amount paid doesn\'t match your required fee — please contact the bursary with your payment reference before trying again, so a partial payment isn\'t lost.';
+        }
+        if (/payment not confirmed by paystack/i.test(msg)) {
+            return '⚠️ Paystack has not confirmed this payment yet. If money was deducted from your account, please wait a few minutes and check your dashboard — contact the bursary with your payment reference if it still isn\'t reflected after 15 minutes.';
+        }
+        if (/failed to update payment status/i.test(msg)) {
+            return '⚠️ Your payment was confirmed by Paystack, but we hit a technical issue recording it. Please contact the bursary with your payment reference — this is on our end, not something you need to retry.';
+        }
+        if (/student not found/i.test(msg)) {
+            return '⚠️ We couldn\'t find your student record. Please double-check your matrix number and try again.';
+        }
+        if (/fee not configured/i.test(msg)) {
+            return '⚠️ Your fee amount isn\'t set up yet for your level/semester. Please contact the bursary directly — this needs to be fixed on their end before you can pay.';
+        }
+        if (/too many requests|too many login attempts/i.test(msg)) {
+            return '⚠️ ' + msg;
+        }
+
+        // Fallback for anything not explicitly handled above
+        return '⚠️ ' + msg + ' Contact the bursary if payment was deducted.';
+    }
+
     // Payment callback (handles Paystack response)
     function handlePaymentCallback(response) {
         payBtn.disabled = true;
@@ -143,10 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => { window.location.href = 'student_login.html'; }, 2500);
             } catch (err) {
                 msgEl.className = 'msg error';
-                const isExpiredIntent = /expired/i.test(err.message || '');
-                msgEl.innerText = isExpiredIntent
-                    ? '⚠️ Your payment session expired before we could confirm it. Please click "Look Up Fee" again to retry. Contact the bursary if payment was deducted.'
-                    : '⚠️ ' + err.message + ' Contact the bursary if payment was deducted.';
+                msgEl.innerText = getFriendlyErrorMessage(err.message);
                 payBtn.disabled = false;
             }
         })();

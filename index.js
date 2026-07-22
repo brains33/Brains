@@ -143,6 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
         {
             question: 'How do I activate my account / do my clearance?',
             answer: 'When the bursary sends a 6-digit code to your email, look above the login page for "Activate BRAINS". Enter your matrix number and the token. Once verified you can log in.'
+        },
+        {
+            question: 'Can I get a refund on my school fees?',
+            answer: 'School fees are generally non-refundable once processed. Exceptions apply for duplicate payments or technical errors — see the Refund Policy link in the footer for details, or contact the bursary directly.'
+        },
+        {
+            question: 'How is my personal data used?',
+            answer: 'See the Privacy Policy link in the footer for full details on what data is collected, why, and your rights under Nigeria\'s NDPR.'
         }
     ];
 

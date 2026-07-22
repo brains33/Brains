@@ -19,6 +19,92 @@
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="index.css">
+    <style>
+        .about-section {
+            max-width: 720px;
+            margin: 64px auto 0;
+            padding: 32px 24px;
+            text-align: center;
+        }
+        .about-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: clamp(1.4rem, 4vw, 2rem);
+            color: #e8f0eb;
+            margin: 20px 0 4px;
+        }
+        .about-location {
+            color: #6b7f72;
+            font-size: 0.95rem;
+            margin: 0 0 20px;
+            letter-spacing: 0.02em;
+        }
+        .about-mission {
+            color: #c3d1c8;
+            line-height: 1.7;
+            font-size: 0.98rem;
+            margin: 0 auto 28px;
+            max-width: 600px;
+        }
+        .about-programs-label {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.78rem;
+            color: #6b7f72;
+            margin-bottom: 14px;
+        }
+        .about-programs-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+        .about-programs-list li {
+            color: #e8f0eb;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .about-programs-list i {
+            color: #3ddc97;
+        }
+        .business-address {
+            font-style: normal;
+            color: #6b7f72;
+            font-size: 0.85rem;
+            margin: 24px 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .legal-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .legal-links a {
+            color: #9cb3a5;
+            text-decoration: none;
+        }
+        .legal-links a:hover,
+        .legal-links a:focus-visible {
+            color: #3ddc97;
+            text-decoration: underline;
+        }
+        .legal-links span {
+            color: #445048;
+        }
+    </style>
 </head>
 <body>
 
@@ -83,6 +169,29 @@
                 <i class="fas fa-chevron-right card-btn-arrow" aria-hidden="true"></i>
             </a>
         </nav>
+
+        <section class="about-section" id="about" aria-labelledby="about-heading">
+            <div class="hero-badge">
+                <span class="badge-dot"></span>
+                About Us
+            </div>
+            <h2 id="about-heading" class="about-title">Niger-North College of Health Science and Technology</h2>
+            <p class="about-location">Kontagora, Niger State</p>
+            <p class="about-mission">
+                To provide quality education, training, and research in the fields of health sciences,
+                medical technology, and related disciplines. The institution offers academic programs,
+                professional certifications, and practical skills development to produce competent
+                healthcare professionals.
+            </p>
+            <div class="about-programs">
+                <p class="about-programs-label">Diploma Programs Offered</p>
+                <ul class="about-programs-list">
+                    <li><i class="fas fa-user-nurse" aria-hidden="true"></i> Community Health Extension Workers (CHEW)</li>
+                    <li><i class="fas fa-flask" aria-hidden="true"></i> Medical Laboratory Technician</li>
+                    <li><i class="fas fa-heartbeat" aria-hidden="true"></i> Public Health</li>
+                </ul>
+            </div>
+        </section>
     </main>
 
     <footer>
@@ -101,6 +210,19 @@
                 <i class="fab fa-whatsapp" aria-hidden="true"></i>
             </a>
         </div>
+        <address class="business-address">
+            <i class="fas fa-location-dot" aria-hidden="true"></i>
+            Mu'ujiza Tech &mdash; E 127 T/Wada Estate, Minna, Niger State, Nigeria
+        </address>
+
+        <nav class="legal-links" aria-label="Legal">
+            <a href="refund-policy.html">Refund Policy</a>
+            <span aria-hidden="true">&middot;</span>
+            <a href="terms-and-conditions.html">Terms &amp; Conditions</a>
+            <span aria-hidden="true">&middot;</span>
+            <a href="privacy-policy.html">Privacy Policy</a>
+        </nav>
+
         <div class="powered-by">POWERED BY MU'UJIZA TECH &copy; 2024–2026</div>
     </footer>
 
