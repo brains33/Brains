@@ -76,12 +76,54 @@
             font-style: normal;
             color: #6b7f72;
             font-size: 0.85rem;
-            margin: 24px 0 12px;
+            margin: 8px 0;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
             flex-wrap: wrap;
+            text-align: center;
+        }
+        .business-address strong {
+            color: #9cb3a5;
+        }
+        .contact-us {
+            margin: 24px 0 16px;
+            text-align: center;
+        }
+        .contact-heading {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.78rem;
+            color: #6b7f72;
+            margin: 0 0 14px;
+        }
+        .contact-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+        .contact-list a {
+            color: #e8f0eb;
+            text-decoration: none;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .contact-list a:hover,
+        .contact-list a:focus-visible {
+            color: #3ddc97;
+            text-decoration: underline;
+        }
+        .contact-list i {
+            color: #3ddc97;
+            width: 18px;
+            text-align: center;
         }
         .legal-links {
             display: flex;
@@ -202,17 +244,37 @@
             <li>SANI ABDULLAHI</li>
             <li>HAMIDU BAWA</li>
         </ul>
-        <div class="contact-dev" aria-label="Contact developer">
-            <a href="mailto:muhammadisahjaps@gmail.com" aria-label="Email developer">
-                <i class="fas fa-envelope" aria-hidden="true"></i>
-            </a>
-            <a href="https://wa.me/2348066433357" aria-label="WhatsApp developer" rel="noopener noreferrer" target="_blank">
-                <i class="fab fa-whatsapp" aria-hidden="true"></i>
-            </a>
+        <div class="contact-us" aria-labelledby="contact-heading">
+            <p id="contact-heading" class="contact-heading">Contact Us</p>
+            <ul class="contact-list">
+                <li>
+                    <a href="tel:+2348066433357">
+                        <i class="fas fa-phone" aria-hidden="true"></i>
+                        <span>+234 806 643 3357</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="https://wa.me/2348066433357" rel="noopener noreferrer" target="_blank">
+                        <i class="fab fa-whatsapp" aria-hidden="true"></i>
+                        <span>WhatsApp: +234 806 643 3357</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="mailto:muhammadisahjaps@gmail.com">
+                        <i class="fas fa-envelope" aria-hidden="true"></i>
+                        <span>muhammadisahjaps@gmail.com</span>
+                    </a>
+                </li>
+            </ul>
         </div>
+
         <address class="business-address">
             <i class="fas fa-location-dot" aria-hidden="true"></i>
-            Mu'ujiza Tech &mdash; E 127 T/Wada Estate, Minna, Niger State, Nigeria
+            <span><strong>Operating address:</strong> NASFAT Secondary School, G.R.A Phase 2, Kontagora, Niger State, Nigeria</span>
+        </address>
+        <address class="business-address">
+            <i class="fas fa-location-dot" aria-hidden="true"></i>
+            <span><strong>Registered address:</strong> Mu'ujiza Tech &mdash; E 127 T/Wada Estate, Minna, Niger State, Nigeria</span>
         </address>
 
         <nav class="legal-links" aria-label="Legal">
