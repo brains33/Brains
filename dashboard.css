@@ -245,6 +245,23 @@ body {
         font-size: 1.2rem;
         letter-spacing: 3px;
     }
+
+    /* Course registration cards: allow wrapping instead of squeezing
+       checkbox + course title + unit badge into one unbreakable row
+       on narrow phones. */
+    .reg-course-card {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 14px !important;
+    }
+    .reg-course-card label {
+        min-width: 0; /* allow the label/title text to actually wrap
+                          instead of forcing the row wider than the screen */
+    }
+    .reg-course-card strong,
+    .reg-course-card span {
+        word-break: break-word;
+    }
 }
 
 
