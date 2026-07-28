@@ -5,6 +5,7 @@
 let FLW_PUBLIC_KEY = null;
 let student = null;
 let paymentIntent = null;   // { intentId, signature, amount, reference }
+let paymentCallbackFired = false; // guards onclose from overwriting a successful callback
 
 // Wait for DOM to be fully loaded before accessing elements
 document.addEventListener('DOMContentLoaded', () => {
@@ -155,6 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Flutterwave's inline callback fires with an object containing
     // status ("successful", "cancelled", "failed"), transaction_id, tx_ref.
     function handlePaymentCallback(response) {
+        paymentCallbackFired = true; // mark before any early return — onclose fires right after this either way
+
         if (!response || response.status !== 'successful') {
             msgEl.className = 'msg error';
             msgEl.innerText = 'Payment was not successful. Please try again.';
@@ -276,6 +279,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 txRef
             });
 
+            paymentCallbackFired = false; // reset for this attempt
+
             FlutterwaveCheckout({
                 public_key: FLW_PUBLIC_KEY,
                 tx_ref: txRef,
@@ -297,6 +302,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 callback: handlePaymentCallback,
                 onclose: function () {
+                    // Flutterwave calls onclose whenever the modal closes —
+                    // including right after a SUCCESSFUL payment, not just
+                    // when the user actually cancels. Without this guard,
+                    // onclose can race with the async verification inside
+                    // handlePaymentCallback and overwrite its "verifying/
+                    // success" message with a false "cancelled" message.
+                    if (paymentCallbackFired) return;
                     msgEl.className = 'msg error';
                     msgEl.innerText = 'Payment was cancelled. Please try again.';
                 }
