@@ -1,8 +1,8 @@
 
-// ======================== SECURE PAYMENT FLOW ========================
+// ======================== SECURE PAYMENT FLOW (Flutterwave) ==========
 // No hardcoded keys – all config fetched from server
 
-let PAYSTACK_PUBLIC_KEY = null;
+let FLW_PUBLIC_KEY = null;
 let student = null;
 let paymentIntent = null;   // { intentId, signature, amount, reference }
 
@@ -20,7 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // Helper: fetch public configuration (Paystack public key)
+    // Helper: fetch public configuration (Flutterwave public key)
+    // NOTE: your busa-proxy's "get-public-config" action must be updated
+    // server-side to return { flutterwavePublicKey } instead of
+    // { paystackPublicKey }.
     async function fetchPublicConfig() {
         const resp = await fetch(
             'https://gjznwgzoqpfdnxywixgv.supabase.co/functions/v1/busa-proxy',
@@ -32,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         if (!resp.ok) throw new Error('Failed to load configuration');
         const config = await resp.json();
-        PAYSTACK_PUBLIC_KEY = config.paystackPublicKey;
+        FLW_PUBLIC_KEY = config.flutterwavePublicKey;
     }
 
     // Helper: create (or re-create) a payment intent for a given matrix number.
@@ -73,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // 1. Ensure config is loaded (first time)
-            if (!PAYSTACK_PUBLIC_KEY) {
+            if (!FLW_PUBLIC_KEY) {
                 await fetchPublicConfig();
             }
 
@@ -128,11 +131,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (/underpayment detected/i.test(msg)) {
             return '⚠️ ' + msg + ' It looks like the amount paid doesn\'t match your required fee — please contact the bursary with your payment reference before trying again, so a partial payment isn\'t lost.';
         }
-        if (/payment not confirmed by paystack/i.test(msg)) {
-            return '⚠️ Paystack has not confirmed this payment yet. If money was deducted from your account, please wait a few minutes and check your dashboard — contact the bursary with your payment reference if it still isn\'t reflected after 15 minutes.';
+        if (/payment not confirmed by flutterwave/i.test(msg)) {
+            return '⚠️ Flutterwave has not confirmed this payment yet. If money was deducted from your account, please wait a few minutes and check your dashboard — contact the bursary with your payment reference if it still isn\'t reflected after 15 minutes.';
         }
         if (/failed to update payment status/i.test(msg)) {
-            return '⚠️ Your payment was confirmed by Paystack, but we hit a technical issue recording it. Please contact the bursary with your payment reference — this is on our end, not something you need to retry.';
+            return '⚠️ Your payment was confirmed by Flutterwave, but we hit a technical issue recording it. Please contact the bursary with your payment reference — this is on our end, not something you need to retry.';
         }
         if (/student not found/i.test(msg)) {
             return '⚠️ We couldn\'t find your student record. Please double-check your matrix number and try again.';
@@ -148,8 +151,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return '⚠️ ' + msg + ' Contact the bursary if payment was deducted.';
     }
 
-    // Payment callback (handles Paystack response)
+    // Payment callback (handles Flutterwave response)
+    // Flutterwave's inline callback fires with an object containing
+    // status ("successful", "cancelled", "failed"), transaction_id, tx_ref.
     function handlePaymentCallback(response) {
+        if (!response || response.status !== 'successful') {
+            msgEl.className = 'msg error';
+            msgEl.innerText = 'Payment was not successful. Please try again.';
+            payBtn.disabled = false;
+            return;
+        }
+
         payBtn.disabled = true;
         msgEl.className = 'msg';
         msgEl.innerText = '⏳ Verifying payment, please wait...';
@@ -163,7 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             action: 'verify-payment',
-                            reference: response.reference,
+                            transactionId: response.transaction_id,
+                            reference: response.tx_ref,
                             matrixNo: student.matrix_no,
                             intentId: paymentIntent.intentId,
                             signature: paymentIntent.signature
@@ -188,19 +201,17 @@ document.addEventListener('DOMContentLoaded', () => {
         })();
     }
 
-    // Intent expiry window on the server is 20 minutes (see indext.ts —
-    // this was previously mismatched at 5 minutes and has been fixed to
-    // match this comment). Refresh a bit before expiry so we never open
-    // the popup with a near-expired intent (checkout + OTP can easily
-    // take a few minutes).
+    // Intent expiry window on the server is 20 minutes (see busa-proxy).
+    // Refresh a bit before expiry so we never open the popup with a
+    // near-expired intent (checkout + OTP can easily take a few minutes).
     const INTENT_STALE_MS = 15 * 60 * 1000; // refresh if older than 15 minutes
 
     // Pay Now button: use the payment intent data
     payBtn.addEventListener('click', async () => {
         try {
-            if (typeof PaystackPop === 'undefined') {
+            if (typeof FlutterwaveCheckout === 'undefined') {
                 alert('Payment system not loaded. Please refresh the page.');
-                console.error('PaystackPop is undefined');
+                console.error('FlutterwaveCheckout is undefined');
                 return;
             }
 
@@ -254,34 +265,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            const amountInKobo = paymentIntent.amount * 100;
-            const reference = paymentIntent.reference;
+            // NOTE: Flutterwave amount is the ACTUAL naira amount —
+            // do NOT multiply by 100 like Paystack's kobo requirement.
+            const amount = paymentIntent.amount;
+            const txRef = paymentIntent.reference;
 
-            console.log('Initiating secure Paystack payment with intent:', {
+            console.log('Initiating secure Flutterwave payment with intent:', {
                 intentId: paymentIntent.intentId,
-                amount: paymentIntent.amount,
-                reference
+                amount,
+                txRef
             });
 
-            const handler = PaystackPop.setup({
-                key: PAYSTACK_PUBLIC_KEY,
-                email: customerEmail,
-                amount: amountInKobo,
+            FlutterwaveCheckout({
+                public_key: FLW_PUBLIC_KEY,
+                tx_ref: txRef,
+                amount: amount,
                 currency: 'NGN',
-                ref: reference,
-                metadata: {
+                payment_options: 'card, banktransfer, ussd',
+                customer: {
+                    email: customerEmail,
+                    name: student.name
+                },
+                meta: {
                     matrix_no: student.matrix_no,
-                    name: student.name,
                     intentId: paymentIntent.intentId,
                     signature: paymentIntent.signature
                 },
+                customizations: {
+                    title: 'BRAINS AI School Fee Payment',
+                    description: `Fee payment for ${student.matrix_no}`
+                },
                 callback: handlePaymentCallback,
-                onClose: function() {
+                onclose: function () {
                     msgEl.className = 'msg error';
                     msgEl.innerText = 'Payment was cancelled. Please try again.';
                 }
             });
-            handler.openIframe();
         } catch (err) {
             console.error('Payment initialization error:', err);
             alert('Payment error: ' + (err.message || 'Unknown error. Check console for details.'));

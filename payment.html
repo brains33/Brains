@@ -7,12 +7,12 @@
 
 <meta http-equiv="Content-Security-Policy" 
       content="default-src 'self';
-               script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://js.paystack.co https://api.paystack.co 'unsafe-inline' 'unsafe-eval';
+               script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://checkout.flutterwave.com 'unsafe-inline' 'unsafe-eval';
                style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
                img-src 'self' data: https:;
-               connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co https://api.paystack.co;
+               connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co https://api.flutterwave.com;
                font-src 'self' https://cdnjs.cloudflare.com;
-               frame-src https://meet.jit.si https://checkout.paystack.com;
+               frame-src https://meet.jit.si https://checkout.flutterwave.com https://ravemodal-dev.herokuapp.com;
                frame-ancestors 'none';">
 
     <style>
@@ -46,7 +46,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://js.paystack.co/v1/inline.js"></script>
+<script src="https://checkout.flutterwave.com/v3.js"></script>
 <script src="payment.js"></script>
 </body>
 </html>
