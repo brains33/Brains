@@ -158,32 +158,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function handlePaymentCallback(response) {
         paymentCallbackFired = true; // mark before any early return — onclose fires right after this either way
 
-        // TEMPORARY DEBUG: log the exact shape of what Flutterwave sends
-        // back so we can see why `status !== 'successful'` is triggering
-        // even when Flutterwave's own modal shows success. Remove once
-        // confirmed.
-        console.log('Flutterwave callback response:', response);
-        try {
-            console.log('Flutterwave callback response (JSON):', JSON.stringify(response));
-        } catch (e) { /* ignore circular/serialize errors */ }
+        // Flutterwave's inline SDK returns different status strings
+        // depending on payment method: "successful" was seen for the
+        // documented/card case, but a real bank_transfer test returned
+        // "completed" instead. Accept both.
+        const rawStatus = response && response.status;
+        const isSuccess = rawStatus === 'successful' || rawStatus === 'completed';
 
-        // Some Flutterwave payment methods (seen with bank transfer) may
-        // return a differently-shaped or differently-cased status value
-        // than the documented "successful" for card payments. Widen the
-        // check slightly while we confirm the real shape via the debug
-        // log above — remove this fallback once confirmed and replace
-        // with whatever the real field/value turns out to be.
-        const rawStatus = response && (response.status ?? response.transaction_status ?? response.tx_status);
-        const looksSuccessful = typeof rawStatus === 'string' && /success/i.test(rawStatus);
-
-        if (!response || !looksSuccessful) {
+        if (!response || !isSuccess) {
             msgEl.className = 'msg error';
             msgEl.innerText = 'Payment was not successful. Please try again.';
-            // TEMPORARY DEBUG: surface the raw response on-screen too,
-            // since this is a mobile browser without easy console access.
-            try {
-                msgEl.innerText += ' [debug: ' + JSON.stringify(response) + ']';
-            } catch (e) { /* ignore */ }
             payBtn.disabled = false;
             return;
         }
