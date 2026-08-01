@@ -170,6 +170,14 @@ async function loginUser() {
             const errMsg = result.error || 'Login failed';
 
             if (errMsg.toLowerCase().includes('account pending approval')) {
+                // NOTE: requires the server (auth-proxy) to return
+                // `paymentToken` and `matrixNo` alongside this error —
+                // see payment.js, which now gates on these two keys
+                // instead of accepting a freely-typed matrix number.
+                if (result.paymentToken) {
+                    sessionStorage.setItem('paymentToken', result.paymentToken);
+                    sessionStorage.setItem('paymentMatrix', (result.matrixNo || inputMatrix).toUpperCase());
+                }
                 window.location.href = 'payment.html';
                 return;
             }

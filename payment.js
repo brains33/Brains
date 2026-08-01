@@ -9,17 +9,31 @@ let paymentCallbackFired = false; // guards onclose from overwriting a successfu
 
 // Wait for DOM to be fully loaded before accessing elements
 document.addEventListener('DOMContentLoaded', () => {
+    // ── SESSION GATE ────────────────────────────────────────────────
+    // A student only reaches this page via student_login.js's
+    // "account pending approval" branch, which stores these two keys
+    // before redirecting here. No token = no legitimate way to have
+    // arrived on this page, so bounce straight back to login instead
+    // of showing anything.
+    const paymentToken  = sessionStorage.getItem('paymentToken');
+    const paymentMatrix = sessionStorage.getItem('paymentMatrix');
+    if (!paymentToken || !paymentMatrix) {
+        window.location.href = 'student_login.html';
+        return;
+    }
+
     // Get DOM elements – fail early if missing
-    const lookupBtn = document.getElementById('lookupBtn');
     const payBtn = document.getElementById('payBtn');
     const feeDisplay = document.getElementById('feeDisplay');
     const msgEl = document.getElementById('msg');
-    const matrixInput = document.getElementById('matrixInput');
+    const matrixLabel = document.getElementById('matrixLabel');
 
-    if (!lookupBtn || !payBtn || !feeDisplay || !msgEl || !matrixInput) {
+    if (!payBtn || !feeDisplay || !msgEl) {
         console.error('Required payment form elements missing');
         return;
     }
+
+    if (matrixLabel) matrixLabel.innerText = `Matrix Number: ${paymentMatrix}`;
 
     // Helper: fetch public configuration (Flutterwave public key)
     // NOTE: your busa-proxy's "get-public-config" action must be updated
@@ -49,7 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'create-payment-intent',
-                    matrixNo: matrixNo
+                    matrixNo: matrixNo,
+                    paymentToken: paymentToken
                 })
             }
         );
@@ -60,17 +75,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return intentResult;
     }
 
-    // Main: load fee and create payment intent
+    // Main: load fee and create payment intent (runs automatically on
+    // page load now — matrix number comes from the verified session,
+    // not a text field, so there's nothing for the student to type).
     async function loadFee() {
-        const matrixInputEl = document.getElementById('matrixInput');
-        const matrixNo = matrixInputEl.value.trim().toUpperCase();
-        if (!matrixNo) {
-            msgEl.className = 'msg error';
-            msgEl.innerText = 'Please enter your matrix number.';
-            return;
-        }
+        const matrixNo = paymentMatrix.trim().toUpperCase();
 
-        lookupBtn.disabled = true;
         feeDisplay.innerText = 'Loading...';
         payBtn.style.display = 'none';
         msgEl.innerText = '';
@@ -87,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (intentResult.already_paid) {
                 msgEl.className = 'msg success';
                 msgEl.innerText = intentResult.message;
-                lookupBtn.disabled = false;
                 return;
             }
 
@@ -103,13 +112,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             feeDisplay.innerText = `Amount: ₦${paymentIntent.amount.toLocaleString()}`;
             payBtn.style.display = 'block';
-            lookupBtn.innerText = '🔍 Look Up Fee';
         } catch (err) {
             msgEl.className = 'msg error';
             msgEl.innerText = err.message;
             console.error(err);
         } finally {
-            lookupBtn.disabled = false;
         }
     }
 
@@ -200,8 +207,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 msgEl.className = 'msg success';
                 msgEl.innerText = '✅ Payment verified! Your bursary will process your clearance shortly.';
                 payBtn.style.display = 'none';
-                lookupBtn.style.display = 'none';
-                document.getElementById('matrixInput').disabled = true;
                 setTimeout(() => { window.location.href = 'student_login.html'; }, 2500);
             } catch (err) {
                 msgEl.className = 'msg error';
@@ -329,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Attach the loadFee function to lookup button
-    lookupBtn.addEventListener('click', loadFee);
+    loadFee(); // auto-run once, on page load
 
     // Initial configuration fetch (ensures keys are ready)
     fetchPublicConfig().catch(console.error);

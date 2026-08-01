@@ -32,15 +32,9 @@
 <body>
 <div class="card">
     <h2>🧾 School Fee Payment</h2>
-    <p>Enter your Matrix Number to continue</p>
+    <p id="matrixLabel" style="opacity:0.7;font-size:0.9rem;"></p>
 
-    <div class="field">
-        <label>Matrix Number</label>
-        <input type="text" id="matrixInput" placeholder="e.g. MLT/23/001">
-    </div>
-
-    <button id="lookupBtn">🔍 Look Up Fee</button>
-    <div id="feeDisplay" style="margin: 15px 0; font-weight: bold;"></div>
+    <div id="feeDisplay" style="margin: 15px 0; font-weight: bold;">Loading your fee...</div>
     <button id="payBtn" style="display: none;">💳 Pay Now</button>
     <p id="msg" class="msg"></p>
 </div>
