@@ -415,6 +415,20 @@ function setMsg(id, type, text) {
     el.innerText  = text;
 }
 
+// ── PASSWORD VISIBILITY TOGGLE ─────────────────────────────────────────
+function setupPasswordToggle(inputId, btnId) {
+    const input = document.getElementById(inputId);
+    const btn   = document.getElementById(btnId);
+    if (!input || !btn) return;
+
+    btn.addEventListener('click', function() {
+        const isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        btn.classList.toggle('active', isHidden);
+        btn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    });
+}
+
 // ── EVENT INITIALIZATION REGISTRY (CSP SECURE COMPLIANT) ──────────────
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('loginBtn')?.addEventListener('click', loginUser);
@@ -425,6 +439,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('goBackBtn')?.addEventListener('click', goBackStep1);
     document.getElementById('fpSaveBtn')?.addEventListener('click', saveNewPassword);
     document.getElementById('closeForgotStep4Btn')?.addEventListener('click', closeForgot);
+
+    setupPasswordToggle('uPass', 'toggleUPass');
 
     if (isLockedOut()) applyLockout();
 });

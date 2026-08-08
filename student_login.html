@@ -14,7 +14,31 @@
                    connect-src 'self' https://gjznwgzoqpfdnxywixgv.supabase.co;
                    font-src 'self' https://cdnjs.cloudflare.com;
                    frame-src https://meet.jit.si; frame-ancestors 'none';">
-                   
+
+    <style>
+        .password-field { position: relative; }
+        .password-field input { width: 100%; box-sizing: border-box; padding-right: 42px; }
+        .toggle-pass {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            line-height: 0;
+        }
+        .toggle-pass:hover { color: #333; }
+        .toggle-pass svg { width: 20px; height: 20px; }
+        .toggle-pass .icon-eye-off { display: none; }
+        .toggle-pass.active .icon-eye { display: none; }
+        .toggle-pass.active .icon-eye-off { display: block; }
+    </style>
 
 </head>
 <body>
@@ -38,7 +62,19 @@
 
         <div class="form-group">
             <label for="uPass">Password</label>
-            <input type="password" id="uPass" placeholder="••••••••">
+            <div class="password-field">
+                <input type="password" id="uPass" placeholder="••••••••">
+                <button type="button" class="toggle-pass" id="toggleUPass" aria-label="Show password">
+                    <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.3 20.3 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a20.29 20.29 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                </button>
+            </div>
         </div>
 
         <div id="loginErrorMsg" class="err-banner" style="display: none;"></div>
